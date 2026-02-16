@@ -2,6 +2,8 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import Response, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from processor import ImageProcessor
+from fastapi.responses import Response
 from typing import List
 import uvicorn
 import sys
@@ -172,31 +174,21 @@ async def get_dashboard_data():
 @app.post("/api/process-images")
 async def process_images(files: List[UploadFile] = File(...)):
 
-    try:
-        if not files:
-            raise HTTPException(status_code=400, detail="No files received")
+    file_data = []
 
-        file_data = []
+    for file in files:
+        content = await file.read()
+        file_data.append((file.filename, content))
 
-        # Convertimos UploadFile → (filename, bytes)
-        for file in files:
-            content = await file.read()
-            file_data.append((file.filename, content))
+    zip_bytes, stats = await ImageProcessor.process_batch(file_data)
 
-        # 🔥 Ejecutamos tu lógica REAL Virtualsoft
-        zip_bytes, stats = await ImageProcessor.process_batch(file_data)
-
-        return Response(
-            content=zip_bytes,
-            media_type="application/zip",
-            headers={
-                "Content-Disposition": "attachment; filename=virtualsoft_processed.zip",
-                "X-Stats": str(stats)
-            }
-        )
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    return Response(
+        content=zip_bytes,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": "attachment; filename=VirtualsoftVision_Processed.zip"
+        }
+    )
 
 
 
