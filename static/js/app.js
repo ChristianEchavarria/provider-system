@@ -485,50 +485,63 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log("Sending files:", selectedFiles);
             console.log("Request URL:", "https://provider-system.onrender.com/api/process-images");
 
-            try {
-                const start = Date.now();
-                const response = await fetch(
-                    "https://provider-system.onrender.com/api/process-images",
-                    {
-                        method: "POST",
-                        body: formData
-                    }
-                );
+         try {
+    const start = Date.now();
 
-                const text = await response.text();
-                console.log("Raw response:", text);
+    const response = await fetch(
+        "https://provider-system.onrender.com/api/process-images",
+        {
+            method: "POST",
+            body: formData
+        }
+    );
 
-                if (!response.ok) {
-                    throw new Error(text);
-                }
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText);
+    }
 
-                const data = JSON.parse(text);
-                const timeTaken = ((Date.now() - start) / 1000).toFixed(2);
+    // 🔥 LEER COMO BLOB (ZIP)
+    const blob = await response.blob();
 
-                log(`SUCCESS: Processed ${selectedFiles.length} images in ${timeTaken}s.`);
+    const timeTaken = ((Date.now() - start) / 1000).toFixed(2);
 
-                if (data.processed && Array.isArray(data.processed)) {
-                    data.processed.forEach(item => {
-                        log(`File: ${item.filename} | Size: ${item.size_mb} MB (${item.size_bytes} bytes)`);
-                    });
-                }
+    // 🔥 DESCARGA AUTOMÁTICA
+    const url = window.URL.createObjectURL(blob);
 
-                // Reset
-                processBtn.innerHTML = '<span class="material-icons-round">check</span> Completed';
-                setTimeout(() => {
-                    const t = translations[currentLang] || translations['es'];
-                    processBtn.innerHTML = `<span class="material-icons-round">auto_fix_high</span> ${t.start_processing}`;
-                    processBtn.disabled = false;
-                    selectedFiles = [];
-                    document.getElementById('file-count').textContent = '0';
-                }, 3000);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "virtualsoft_processed.zip";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
 
-            } catch (error) {
-                console.error("Processing error:", error);
-                log(`ERROR: ${error.message}`);
-                processBtn.innerHTML = '<span class="material-icons-round">error</span> Failed';
-                processBtn.disabled = false;
-            }
+    window.URL.revokeObjectURL(url);
+
+    log(`SUCCESS: Images processed and ZIP downloaded in ${timeTaken}s.`);
+    log(`Output: CUADRADAS (460x460) and RECTANGULARES (725x460)`);
+
+    processBtn.innerHTML = '<span class="material-icons-round">check</span> Completed';
+
+    setTimeout(() => {
+        const t = translations[currentLang] || translations['es'];
+        processBtn.innerHTML = `<span class="material-icons-round">auto_fix_high</span> ${t.start_processing}`;
+        processBtn.disabled = false;
+        selectedFiles = [];
+        document.getElementById('file-count').textContent = '0';
+    }, 3000);
+
+} catch (error) {
+
+    console.error("Processing error:", error);
+
+    log(`ERROR: ${error.message}`);
+
+    processBtn.innerHTML = '<span class="material-icons-round">error</span> Failed';
+
+    processBtn.disabled = false;
+}
+
         });
     }
 });

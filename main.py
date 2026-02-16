@@ -169,77 +169,35 @@ async def get_dashboard_data():
 # =============================
 # IMAGE PROCESSING ENDPOINT
 # =============================
-
 @app.post("/api/process-images")
 async def process_images(files: List[UploadFile] = File(...)):
 
-    start_time = time.time()
-
     try:
+        if not files:
+            raise HTTPException(status_code=400, detail="No files received")
 
-        if not files or len(files) == 0:
+        file_data = []
 
-            raise HTTPException(
-                status_code=400,
-                detail="No files received"
-            )
-
-        results = []
-
+        # Convertimos UploadFile → (filename, bytes)
         for file in files:
-
             content = await file.read()
+            file_data.append((file.filename, content))
 
-            size_bytes = len(content)
-            size_kb = size_bytes / 1024
-            size_mb = size_kb / 1024
+        # 🔥 Ejecutamos tu lógica REAL Virtualsoft
+        zip_bytes, stats = await ImageProcessor.process_batch(file_data)
 
-            results.append({
-
-                "filename": file.filename,
-
-                "size_bytes": size_bytes,
-
-                "size_kb": round(size_kb, 2),
-
-                "size_mb": round(size_mb, 2)
-
-            })
-
-        processing_time = round(time.time() - start_time, 3)
-
-        print(f"✅ Processed {len(files)} files in {processing_time}s")
-
-        return JSONResponse(
-
-            content={
-                "success": True,
-                "processed": results,
-                "processing_time": processing_time
-            },
-
+        return Response(
+            content=zip_bytes,
+            media_type="application/zip",
             headers={
-                "X-Processing-Time": str(processing_time)
+                "Content-Disposition": "attachment; filename=virtualsoft_processed.zip",
+                "X-Stats": str(stats)
             }
-
         )
 
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-        print("❌ Processing error:", str(e))
-
-        traceback.print_exc()
-
-        return JSONResponse(
-
-            status_code=500,
-
-            content={
-                "success": False,
-                "error": str(e)
-            }
-
-        )
 
 
 # =============================
