@@ -55,7 +55,7 @@ class ImageProcessor:
         zip_buffer = io.BytesIO()
         stats = {"CUADRADAS": 0, "RECTANGULARES": 0, "PROCESADAS": 0, "ERRORES": 0}
         
-        with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
+with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
             for filename, content in files:
                 try:
                     # Carga y normalización de activo
@@ -87,5 +87,6 @@ class ImageProcessor:
                 except Exception as e:
                     stats["ERRORES"] += 1
                     logger.error(f"Error en protocolo para {filename}: {str(e)}")
-                    
+                 
+        zip_buffer.seek(0)   
         return zip_buffer.getvalue(), stats
