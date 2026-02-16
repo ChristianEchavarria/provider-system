@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Centro de Inteligencia de Proveedores | Virtualsoft</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+</head>
+
+<body>
+    <!-- Login Overlay -->
+    <div id="login-screen" class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <span class="logo-icon-large">V</span>
+                <h2 style="color:white; margin:10px 0;">ACCESS PORTAL</h2>
+                <p data-i18n="login_subtitle" style="color:#aaa;">Secure Provider Intelligence System</p>
+            </div>
+
+            <form id="login-form">
+                <div class="input-group">
+                    <span class="material-icons-round">email</span>
+                    <input type="email" id="email" placeholder="admin@virtualsoft.com" required>
+                </div>
+                <div class="input-group">
+                    <span class="material-icons-round">lock</span>
+                    <input type="password" id="password" placeholder="••••••••" required>
+                </div>
+
+                <div class="login-options">
+                    <label class="checkbox-container">
+                        <input type="checkbox" checked>
+                        <span class="checkmark"></span>
+                        <span data-i18n="remember_me">Recuérdame</span>
+                    </label>
+                    <a href="#" class="forgot-link" data-i18n="forgot_pass">¿Olvidaste tu contraseña?</a>
+                </div>
+
+                <div id="login-error" class="login-error"></div>
+
+                <button type="submit" class="neon-btn full-width" id="login-btn">
+                    <span data-i18n="login_action">AUTENTICAR</span>
+                    <span class="material-icons-round">arrow_forward</span>
+                </button>
+            </form>
+            <div class="login-footer">
+                <p>Virtualsoft Intelligence System v2.0</p>
+            </div>
+        </div>
+        <div class="login-bg-effect"></div>
+    </div>
+
+    <!-- Main App (Hidden by default) -->
+    <div class="app-container" id="app-container" style="display:none;">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="brand">
+                <span class="logo-icon">VS</span>
+                <h2 data-i18n="brand_title">INTELIGENCIA</h2>
+            </div>
+
+            <nav class="nav-menu">
+                <a href="#" class="nav-item active" data-target="dashboard">
+                    <span class="material-icons-round">dashboard</span>
+                    <span data-i18n="nav_dashboard">Panel Principal</span>
+                </a>
+                <a href="#" class="nav-item" data-target="vision">
+                    <span class="material-icons-round">remove_red_eye</span>
+                    <span data-i18n="nav_vision">IA VisionProcessor</span>
+                    <span class="badge">NEW</span>
+                </a>
+                <a href="#" class="nav-item" data-target="admin">
+                    <span class="material-icons-round">admin_panel_settings</span>
+                    <span data-i18n="nav_admin">Panel Admin</span>
+                </a>
+                <a href="#" class="nav-item" data-target="reports">
+                    <span class="material-icons-round">assessment</span>
+                    <span data-i18n="nav_reports">Reportes</span>
+                </a>
+                <div class="nav-spacer"></div>
+                <a href="#" class="nav-item" data-target="config">
+                    <span class="material-icons-round">settings</span>
+                    <span data-i18n="nav_config">Configuración</span>
+                </a>
+                <a href="#" class="nav-item" id="logout-btn" style="margin-top:auto; color:#ff3b3b;">
+                    <span class="material-icons-round">logout</span>
+                    <span data-i18n="logout">Cerrar Sesión</span>
+                </a>
+            </nav>
+
+            <div class="user-profile">
+                <div class="avatar">CE</div>
+                <div class="info">
+                    <span class="name" id="user-name">Chris Admin</span>
+                    <span class="role" data-i18n="role_superuser">Super Usuario</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="top-header">
+                <div class="header-left">
+                    <h1 data-i18n="header_title">Centro de Inteligencia de Proveedores</h1>
+                    <span class="status-pill online">
+                        <span class="dot"></span> <span data-i18n="system_status">Sistema En Línea</span>
+                    </span>
+                </div>
+                <div class="header-right">
+                    <div class="language-selector">
+                        <span class="material-icons-round">translate</span>
+                        <select id="lang-select" class="lang-dropdown glass-select">
+                            <option value="es" selected>Español</option>
+                            <option value="en">English</option>
+                            <option value="zh">中文 (Mandarin)</option>
+                            <option value="it">Italiano</option>
+                            <option value="fr">Français</option>
+                            <option value="pt">Português</option>
+                        </select>
+                    </div>
+                    <div class="search-bar">
+                        <span class="material-icons-round">search</span>
+                        <input type="text" data-i18n-placeholder="search_placeholder"
+                            placeholder="Buscar proveedor, operación...">
+                    </div>
+                    <button class="icon-btn">
+                        <span class="material-icons-round">notifications</span>
+                        <span class="notification-dot"></span>
+                    </button>
+                    <button class="icon-btn">
+                        <span class="material-icons-round">help_outline</span>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Dashboard View -->
+            <div id="view-dashboard" class="content-view active">
+                <!-- KPI Row -->
+                <div class="kpi-grid">
+                    <div class="kpi-card">
+                        <div class="kpi-icon blue">
+                            <span class="material-icons-round">dns</span>
+                        </div>
+                        <div class="kpi-info">
+                            <span class="label" data-i18n="kpi_ops">Total Operaciones</span>
+                            <span class="value" id="kpi-ops">--</span>
+                        </div>
+                    </div>
+
+                    <div class="kpi-card">
+                        <div class="kpi-icon purple">
+                            <span class="material-icons-round">groups</span>
+                        </div>
+                        <div class="kpi-info">
+                            <span class="label" data-i18n="kpi_providers">Total Proveedores</span>
+                            <span class="value" id="kpi-providers">--</span>
+                        </div>
+                    </div>
+
+                    <div class="kpi-card">
+                        <div class="kpi-icon green">
+                            <span class="material-icons-round">verified</span>
+                        </div>
+                        <div class="kpi-info">
+                            <span class="label" data-i18n="kpi_active">Activos Globales</span>
+                            <span class="value" id="kpi-active">--</span>
+                        </div>
+                    </div>
+
+                    <div class="kpi-card">
+                        <div class="kpi-icon orange">
+                            <span class="material-icons-round">shield</span>
+                        </div>
+                        <div class="kpi-info">
+                            <span class="label" data-i18n="kpi_compliance">Tasa Cumplimiento</span>
+                            <span class="value" id="kpi-compliance">--%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Main Grid Split -->
+                <div class="dashboard-grid">
+                    <!-- Left: Provider Matrix -->
+                    <div class="panel matrix-panel">
+                        <div class="panel-header">
+                            <h3 data-i18n="matrix_title">Matriz de Proveedores</h3>
+                            <div class="actions">
+                                <select id="operation-filter" class="glass-select">
+                                    <option value="all" data-i18n="filter_all">Todas las Operaciones</option>
+                                    <!-- Options populated dynamically -->
+                                </select>
+                                <button class="glass-btn small">
+                                    <span class="material-icons-round">filter_list</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="table-container">
+                            <table class="glass-table">
+                                <thead>
+                                    <tr>
+                                        <th data-i18n="col_provider">Proveedor</th>
+                                        <th data-i18n="col_subprovider">Sub-Proveedor</th>
+                                        <th data-i18n="col_vertical">Vertical</th>
+                                        <th data-i18n="col_status">Estado</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="matrix-body">
+                                    <!-- Dynamic Rows -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Right: Analytics & Logs -->
+                    <div class="right-column">
+
+                        <!-- Compliance Widget -->
+                        <div class="panel compliance-widget">
+                            <div class="panel-header warning-header">
+                                <span class="material-icons-round">gavel</span>
+                                <h3 data-i18n="compliance_title">Cumplimiento Crítico</h3>
+                            </div>
+                            <div class="compliance-list" id="compliance-list">
+                                <!-- Alerts go here -->
+                                <div class="empty-state" data-i18n="system_healthy">Sistema Saludable</div>
+                            </div>
+                        </div>
+
+                        <!-- Activity Log -->
+                        <div class="panel activity-panel">
+                            <h3 data-i18n="activity_title">Actividad en Vivo</h3>
+                            <div class="activity-feed" id="activity-feed">
+                                <!-- Logs -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VisionProcessor View -->
+            <div id="view-vision" class="content-view">
+                <div class="vision-container">
+                    <div class="vision-header">
+                        <h2>IA VisionProcessor</h2>
+                        <p data-i18n="vision_desc">Motor automatizado de optimización de imágenes. Sube activos para
+                            procesar al instante.</p>
+                    </div>
+
+                    <div class="upload-zone" id="drop-zone">
+                        <span class="material-icons-round big-icon">cloud_upload</span>
+                        <h3 data-i18n="drag_drop">Arrastra y suelta imágenes aquí</h3>
+                        <p data-i18n="supported_files">Soportado: JPG, PNG, WEBP (Max 10MB)</p>
+                        <input type="file" id="file-input" multiple hidden>
+                        <button class="neon-btn" onclick="document.getElementById('file-input').click()"
+                            data-i18n="browse_files">Explorar Archivos</button>
+                    </div>
+
+                    <div class="process-controls">
+                        <div class="stats-bar">
+                            <div class="stat">
+                                <label data-i18n="files_selected">Archivos Seleccionados:</label>
+                                <span id="file-count">0</span>
+                            </div>
+                            <div class="stat">
+                                <label data-i18n="target_size">Tamaño Objetivo:</label>
+                                <span>460x460 (Square) & 725x460 (Rect)</span>
+                            </div>
+                        </div>
+                        <button id="process-btn" class="neon-btn full-width" disabled>
+                            <span class="material-icons-round">auto_fix_high</span>
+                            <span data-i18n="start_processing">Iniciar Procesamiento por Lotes</span>
+                        </button>
+                    </div>
+
+                    <div class="processing-log" id="processing-log">
+                        <!-- Processing messages -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Admin View -->
+            <div id="view-admin" class="content-view">
+                <div class="panel">
+                    <div class="panel-header">
+                        <h3 data-i18n="admin_user_mgmt">Gestión de Usuarios</h3>
+                        <button class="neon-btn small" data-i18n="add_user">Agregar Usuario</button>
+                    </div>
+                    <table class="glass-table">
+                        <thead>
+                            <tr>
+                                <th data-i18n="col_user">Usuario</th>
+                                <th data-i18n="col_role">Rol</th>
+                                <th data-i18n="col_access">Nivel de Acceso</th>
+                                <th data-i18n="col_status">Estado</th>
+                                <th data-i18n="col_actions">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>christian.echavarria@virtualsoft.com</td>
+                                <td>Super Admin</td>
+                                <td>Full Access</td>
+                                <td><span class="status-indicator status-active">Active</span></td>
+                                <td><button class="icon-btn"><span class="material-icons-round">edit</span></button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="panel" style="margin-top: 24px;">
+                    <div class="panel-header">
+                        <h3 data-i18n="admin_system_ops">Operaciones del Sistema</h3>
+                    </div>
+                    <div class="admin-actions-grid">
+                        <div class="action-card">
+                            <span class="material-icons-round">sync</span>
+                            <h4 data-i18n="forcesync">Forzar Sincronización de Datos</h4>
+                            <button class="glass-btn full-width" data-i18n="btn_sync">Sincronizar Ahora</button>
+                        </div>
+                        <div class="action-card">
+                            <span class="material-icons-round">restart_alt</span>
+                            <h4 data-i18n="restart_services">Reiniciar Servicios IA</h4>
+                            <button class="glass-btn full-width" data-i18n="btn_restart">Reiniciar</button>
+                        </div>
+                        <div class="action-card">
+                            <span class="material-icons-round">security</span>
+                            <h4 data-i18n="audit_log">Descargar Logs de Auditoría</h4>
+                            <button class="glass-btn full-width" data-i18n="btn_download">Descargar (CSV)</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reports View -->
+            <div id="view-reports" class="content-view">
+                <div class="panel">
+                    <div class="panel-header">
+                        <h3 data-i18n="reports_compliance">Reporte Detallado de Cumplimiento</h3>
+                        <button class="glass-btn"><span class="material-icons-round">file_download</span> <span
+                                data-i18n="export_pdf">Exportar PDF</span></button>
+                    </div>
+                    <div class="report-filters">
+                        <div class="filter-group">
+                            <label data-i18n="date_range">Rango de Fechas</label>
+                            <input type="date" class="glass-input">
+                        </div>
+                        <div class="filter-group">
+                            <label data-i18n="region">Región</label>
+                            <select class="glass-select">
+                                <option>Perú</option>
+                                <option>Chile</option>
+                                <option>Ecuador</option>
+                            </select>
+                        </div>
+                        <button class="neon-btn" data-i18n="gen_report">Generar Reporte</button>
+                    </div>
+                    <div class="chart-container-large"
+                        style="height: 300px; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.02); border-radius:12px; margin-top:20px; border: 1px dashed rgba(255,255,255,0.1);">
+                        <span style="color:#666;" data-i18n="chart_placeholder">[Gráfico de Tendencia de Cumplimiento
+                            Mensual]</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Config View -->
+            <div id="view-config" class="content-view">
+                <div class="panel config-panel">
+                    <h3 data-i18n="system_pref">Preferencias del Sistema</h3>
+
+                    <div class="config-item">
+                        <div class="config-label">
+                            <strong data-i18n="cfg_darkmode">Modo Oscuro Forzado</strong>
+                            <p data-i18n="cfg_darkmode_desc">Mantener la interfaz en modo alto contraste.</p>
+                        </div>
+                        <div class="toggle-switch active"></div>
+                    </div>
+
+                    <div class="config-item">
+                        <div class="config-label">
+                            <strong data-i18n="cfg_notifications">Notificaciones de Escritorio</strong>
+                            <p data-i18n="cfg_notifications_desc">Recibir alertas de nuevos proveedores.</p>
+                        </div>
+                        <div class="toggle-switch active"></div>
+                    </div>
+
+                    <div class="config-item">
+                        <div class="config-label">
+                            <strong data-i18n="cfg_autorefresh">Auto-Refresco de Datos</strong>
+                            <p data-i18n="cfg_autorefresh_desc">Intervalo de sincronización de la matriz.</p>
+                        </div>
+                        <select class="glass-select" style="width:150px;">
+                            <option value="5">5 min</option>
+                            <option value="15">15 min</option>
+                            <option value="60">1 hora</option>
+                        </select>
+                    </div>
+
+                    <div class="config-item">
+                        <div class="config-label">
+                            <strong data-i18n="cfg_api_endpoint">Endpoint de API Principal</strong>
+                        </div>
+                        <input type="text" class="glass-input" value="https://api.virtualsoft.com/v1/provider-intel"
+                            style="width: 300px;">
+                    </div>
+
+                    <div style="margin-top:30px; text-align:right;">
+                        <button class="neon-btn" data-i18n="save_changes">Guardar Cambios</button>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+
+</html>
