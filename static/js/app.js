@@ -485,62 +485,67 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log("Sending files:", selectedFiles);
             console.log("Request URL:", "https://provider-system.onrender.com/api/process-images");
 
-         try {
-    const start = Date.now();
+            try {
+                const start = Date.now();
 
-    const response = await fetch(
-        "https://provider-system.onrender.com/api/process-images",
-        {
-            method: "POST",
-            body: formData
-        }
-    );
+                const response = await fetch(
+                    "https://provider-system.onrender.com/api/process-images",
+                    {
+                        method: "POST",
+                        body: formData
+                    }
+                );
 
-    if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText);
-    }
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(errorText);
+                }
 
-    // 🔥 LEER COMO BLOB (ZIP)
-    const blob = await response.blob();
+                const contentType = response.headers.get("content-type");
+                if (contentType && !contentType.includes("zip") && !contentType.includes("octet-stream")) {
+                    throw new Error("El servidor no devolvió un archivo ZIP válido. Tipo de contenido recibido: " + contentType);
+                }
 
-    const timeTaken = ((Date.now() - start) / 1000).toFixed(2);
+                // 🔥 LEER COMO BLOB (ZIP)
+                const blob = await response.blob();
 
-    // 🔥 DESCARGA AUTOMÁTICA
-    const url = window.URL.createObjectURL(blob);
+                const timeTaken = ((Date.now() - start) / 1000).toFixed(2);
 
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "virtualsoft_processed.zip";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+                // 🔥 DESCARGA AUTOMÁTICA
+                const url = window.URL.createObjectURL(blob);
 
-    window.URL.revokeObjectURL(url);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "virtualsoft_processed.zip";
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
 
-    log(`SUCCESS: Images processed and ZIP downloaded in ${timeTaken}s.`);
-    log(`Output: CUADRADAS (460x460) and RECTANGULARES (725x460)`);
+                window.URL.revokeObjectURL(url);
 
-    processBtn.innerHTML = '<span class="material-icons-round">check</span> Completed';
+                log(`SUCCESS: Images processed and ZIP downloaded in ${timeTaken}s.`);
+                log(`Output: CUADRADAS (460x460) and RECTANGULARES (725x460)`);
 
-    setTimeout(() => {
-        const t = translations[currentLang] || translations['es'];
-        processBtn.innerHTML = `<span class="material-icons-round">auto_fix_high</span> ${t.start_processing}`;
-        processBtn.disabled = false;
-        selectedFiles = [];
-        document.getElementById('file-count').textContent = '0';
-    }, 3000);
+                processBtn.innerHTML = '<span class="material-icons-round">check</span> Completed';
 
-} catch (error) {
+                setTimeout(() => {
+                    const t = translations[currentLang] || translations['es'];
+                    processBtn.innerHTML = `<span class="material-icons-round">auto_fix_high</span> ${t.start_processing}`;
+                    processBtn.disabled = false;
+                    selectedFiles = [];
+                    document.getElementById('file-count').textContent = '0';
+                }, 3000);
 
-    console.error("Processing error:", error);
+            } catch (error) {
 
-    log(`ERROR: ${error.message}`);
+                console.error("Processing error:", error);
 
-    processBtn.innerHTML = '<span class="material-icons-round">error</span> Failed';
+                log(`ERROR: ${error.message}`);
 
-    processBtn.disabled = false;
-}
+                processBtn.innerHTML = '<span class="material-icons-round">error</span> Failed';
+
+                processBtn.disabled = false;
+            }
 
         });
     }

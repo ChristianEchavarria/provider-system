@@ -23,6 +23,10 @@ VISION_PATH = os.path.abspath(os.path.join(BASE_DIR, '../vision-processor'))
 if VISION_PATH not in sys.path:
     sys.path.append(VISION_PATH)
 
+# Ensure current directory is in path (fixes ModuleNotFoundError when running from root)
+if BASE_DIR not in sys.path:
+    sys.path.append(BASE_DIR)
+
 # =============================
 # OPTIONAL IMPORTS
 # =============================
@@ -194,10 +198,7 @@ async def process_images(files: List[UploadFile] = File(...)):
             media_type="application/zip",
             headers={
                 "Content-Disposition": "attachment; filename=virtualsoft_processed.zip",
-                "X-Stats-Processed": str(stats.get("PROCESADAS", 0)),
-                "X-Stats-Squares": str(stats.get("CUADRADAS", 0)),
-                "X-Stats-Rects": str(stats.get("RECTANGULARES", 0)),
-                "X-Stats-Errors": str(stats.get("ERRORES", 0)),
+                "X-Stats": json.dumps(stats),
             }
         )
 
