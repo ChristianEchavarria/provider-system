@@ -171,24 +171,43 @@ async def get_dashboard_data():
 # =============================
 # IMAGE PROCESSING ENDPOINT
 # =============================
+from fastapi.responses import Response
+
 @app.post("/api/process-images")
 async def process_images(files: List[UploadFile] = File(...)):
 
-    file_data = []
+    try:
 
-    for file in files:
-        content = await file.read()
-        file_data.append((file.filename, content))
+        file_data = []
 
-    zip_bytes, stats = await ImageProcessor.process_batch(file_data)
+        for file in files:
+            content = await file.read()
+            file_data.append((file.filename, content))
 
-    return Response(
-        content=zip_bytes,
-        media_type="application/zip",
-        headers={
-            "Content-Disposition": "attachment; filename=VirtualsoftVision_Processed.zip"
-        }
-    )
+        # importar processor REAL
+        from processor import ImageProcessor
+
+        zip_bytes, stats = await ImageProcessor.process_batch(file_data)
+
+        return Response(
+            content=zip_bytes,
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": "attachment; filename=virtualsoft_processed.zip",
+                "X-Stats-Processed": str(stats.get("PROCESADAS", 0)),
+                "X-Stats-Squares": str(stats.get("CUADRADAS", 0)),
+                "X-Stats-Rects": str(stats.get("RECTANGULARES", 0)),
+                "X-Stats-Errors": str(stats.get("ERRORES", 0)),
+            }
+        )
+
+    except Exception as e:
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"Processing failed: {str(e)}"
+        )
+
 
 
 
