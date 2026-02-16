@@ -70,41 +70,25 @@ async def get_dashboard_data():
 
 @app.post("/api/process-images")
 async def process_images(files: List[UploadFile] = File(...)):
-    """
-    Endpoint for bulk image processing (VisionProcessor).
-    Reuses the logic from the original project.
-    """
-    start_time = time.time()
+    results = []
     
-    if not files:
-        raise HTTPException(status_code=400, detail="No files sent.")
-
-    file_data = []
-    
-    # Read files
     for file in files:
         content = await file.read()
-        file_data.append((file.filename, content))
-    
-    # Process
-    try:
-        zip_bytes, stats = await ImageProcessor.process_batch(file_data)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    
-    end_time = time.time()
-    processing_time = end_time - start_time
-    
-    return Response(
-        content=zip_bytes,
-        media_type="application/zip",
-        headers={
-            "Content-Disposition": f"attachment; filename=vision_processed_{int(time.time())}.zip",
-            "X-Processing-Time": f"{processing_time:.2f}s",
-            "X-Stats": json.dumps(stats),
-            "Access-Control-Expose-Headers": "X-Stats, X-Processing-Time"
-        }
-    )
+        size_bytes = len(content)
+        size_kb = size_bytes / 1024
+        size_mb = size_kb / 1024
+
+        results.append({
+            "filename": file.filename,
+            "size_bytes": size_bytes,
+            "size_kb": round(size_kb, 2),
+            "size_mb": round(size_mb, 2)
+        })
+
+    return {
+        "success": True,
+        "processed": results
+    }
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

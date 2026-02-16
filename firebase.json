@@ -1,26 +1,10 @@
 {
   "hosting": {
-    "public": ".",
+    "public": "static",
     "ignore": [
       "firebase.json",
       "**/.*",
-      "**/node_modules/**",
-      "**/*.py",
-      "data.txt",
-      "__pycache__"
-    ],
-    "rewrites": [
-      {
-        "source": "/api/**",
-        "run": {
-          "serviceId": "provider-api",
-          "region": "us-central1"
-        }
-      },
-      {
-        "source": "**",
-        "destination": "/static/index.html"
-      }
+      "**/node_modules/**"
     ]
   }
 }

@@ -1,14 +1,14 @@
 // Firebase Configuration
 // TODO: Replace with your project's config object from Firebase Console
 // Go to Project Settings > General > Your Apps > SDK Setup and Configuration
-  const firebaseConfig = {
+const firebaseConfig = {
     apiKey: "AIzaSyBSnSstmZmui0X3zxyQKATlUMSpaq0b-VI",
     authDomain: "casino-system-5947f.firebaseapp.com",
     projectId: "casino-system-5947f",
     storageBucket: "casino-system-5947f.firebasestorage.app",
     messagingSenderId: "166527970847",
     appId: "1:166527970847:web:1ed9f03fefcb44aa0f6f2a"
-  };
+};
 
 // Initialize Firebase
 try {
@@ -282,7 +282,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // === Dashboard Logic ===
     async function loadDashboardData() {
         try {
-            const response = await fetch('/api/dashboard-data');
+            const response = await fetch("https://provider-system.onrender.com/api/dashboard-data");
             const data = await response.json();
 
             if (data.error) {
@@ -482,27 +482,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
             try {
                 const start = Date.now();
-                const response = await fetch('/api/process-images', {
+                // CRITICAL: Use the Render backend URL, not localhost or relative path
+                const response = await fetch('https://provider-system.onrender.com/api/process-images', {
                     method: 'POST',
                     body: formData
                 });
 
                 if (!response.ok) throw new Error("Processing failed");
 
-                const blob = await response.blob();
+                const data = await response.json();
                 const timeTaken = ((Date.now() - start) / 1000).toFixed(2);
 
-                // Handle Download
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `vision_processed_${Date.now()}.zip`;
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-
                 log(`SUCCESS: Processed ${selectedFiles.length} images in ${timeTaken}s.`);
-                log(`Downloading ZIP archive...`);
+
+                if (data.processed && Array.isArray(data.processed)) {
+                    data.processed.forEach(item => {
+                        log(`File: ${item.filename} | Size: ${item.size_mb} MB (${item.size_bytes} bytes)`);
+                    });
+                }
 
                 // Reset
                 processBtn.innerHTML = '<span class="material-icons-round">check</span> Completed';
@@ -515,6 +512,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }, 3000);
 
             } catch (error) {
+                console.error(error);
                 log(`ERROR: ${error.message}`);
                 processBtn.innerHTML = '<span class="material-icons-round">error</span> Failed';
                 processBtn.disabled = false;
