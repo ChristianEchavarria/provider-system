@@ -45,48 +45,68 @@ class ImageProcessor:
             
         return output.getvalue()
 
-    @classmethod
-    async def process_batch(cls, files: List[Tuple[str, bytes]]) -> Tuple[bytes, Dict[str, int]]:
-        """
-        Procesamiento Dual Sistemático:
-        Cada imagen recibida genera DOS versiones (Cuadrada y Rectangular)
-        independientemente de su proporción original, aplicando Smart Crop.
-        """
-        zip_buffer = io.BytesIO()
-        stats = {"CUADRADAS": 0, "RECTANGULARES": 0, "PROCESADAS": 0, "ERRORES": 0}
-        
-with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-            for filename, content in files:
-                try:
-                    # Carga y normalización de activo
-                    img = Image.open(io.BytesIO(content))
-                    
-                    if img.mode in ("RGBA", "P"):
-                        img = img.convert("RGB")
-                    elif img.mode != "RGB":
-                        img = img.convert("RGB")
-                    
-                    # Generación de nombre base
-                    base_name = filename.rsplit('.', 1)[0]
+  @classmethod
+async def process_batch(cls, files: List[Tuple[str, bytes]]) -> Tuple[bytes, Dict[str, int]]:
 
-                    # --- 1. PROCESAMIENTO CUADRADO (460x460) ---
-                    sq_img = cls.smart_resize(img, cls.TARGET_SQUARE)
-                    sq_bytes = cls.compress_adaptive(sq_img)
-                    zip_file.writestr(f"CUADRADAS/{base_name}.jpg", sq_bytes)
-                    stats["CUADRADAS"] += 1
+    zip_buffer = io.BytesIO()
 
-                    # --- 2. PROCESAMIENTO RECTANGULAR (725x460) ---
-                    rect_img = cls.smart_resize(img, cls.TARGET_RECT)
-                    rect_bytes = cls.compress_adaptive(rect_img)
-                    zip_file.writestr(f"RECTANGULARES/{base_name}.jpg", rect_bytes)
-                    stats["RECTANGULARES"] += 1
+    stats = {
+        "CUADRADAS": 0,
+        "RECTANGULARES": 0,
+        "PROCESADAS": 0,
+        "ERRORES": 0
+    }
 
-                    stats["PROCESADAS"] += 1
-                    logger.info(f"Protocolo Dual completado para: {filename}")
-                    
-                except Exception as e:
-                    stats["ERRORES"] += 1
-                    logger.error(f"Error en protocolo para {filename}: {str(e)}")
-                 
-        zip_buffer.seek(0)   
-        return zip_buffer.getvalue(), stats
+    with zipfile.ZipFile(
+        zip_buffer,
+        mode="w",
+        compression=zipfile.ZIP_DEFLATED
+    ) as zip_file:
+
+        for filename, content in files:
+
+            try:
+
+                img = Image.open(io.BytesIO(content))
+
+                if img.mode != "RGB":
+                    img = img.convert("RGB")
+
+                base_name = filename.rsplit(".", 1)[0]
+
+                # CUADRADA
+                sq = cls.smart_resize(img, cls.TARGET_SQUARE)
+                sq_bytes = cls.compress_adaptive(sq)
+
+                zip_file.writestr(
+                    f"CUADRADAS/{base_name}.jpg",
+                    sq_bytes
+                )
+
+                stats["CUADRADAS"] += 1
+
+                # RECTANGULAR
+                rect = cls.smart_resize(img, cls.TARGET_RECT)
+                rect_bytes = cls.compress_adaptive(rect)
+
+                zip_file.writestr(
+                    f"RECTANGULARES/{base_name}.jpg",
+                    rect_bytes
+                )
+
+                stats["RECTANGULARES"] += 1
+                stats["PROCESADAS"] += 1
+
+            except Exception as e:
+
+                stats["ERRORES"] += 1
+                logger.error(f"Error processing {filename}: {e}")
+
+    # CRITICAL FIX
+    zip_buffer.seek(0)
+
+    zip_bytes = zip_buffer.read()
+
+    logger.info(f"ZIP size: {len(zip_bytes)} bytes")
+
+    return zip_bytes, stats
