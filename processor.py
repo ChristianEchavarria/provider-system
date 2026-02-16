@@ -4,109 +4,122 @@ from PIL import Image, ImageOps
 from typing import List, Tuple, Dict
 import logging
 
-# Configuración de logs con estándar corporativo Virtualsoft
+# Configuración de logs
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("VirtualsoftVision")
 
+
 class ImageProcessor:
+
     TARGET_SQUARE = (460, 460)
     TARGET_RECT = (725, 460)
     MAX_FILE_SIZE_KB = 200
-    
+
     @classmethod
     def smart_resize(cls, img: Image.Image, target_size: Tuple[int, int]) -> Image.Image:
-        """
-        Redimensiona la imagen para que encaje COMPLETA dentro de las dimensiones objetivo,
-        añadiendo relleno (padding) negro si es necesario para mantener la relación de aspecto.
-        """
-        # ImageOps.pad escala la imagen para caber dentro del target_size sin recortar nada.
-        # Rellena el espacio sobrante con el color especificado (Negro #000000 para Virtualsoft).
-        return ImageOps.pad(img, target_size, method=Image.Resampling.LANCZOS, color="#000000", centering=(0.5, 0.5))
+
+        return ImageOps.pad(
+            img,
+            target_size,
+            method=Image.Resampling.LANCZOS,
+            color="#000000",
+            centering=(0.5, 0.5)
+        )
 
     @classmethod
     def compress_adaptive(cls, img: Image.Image) -> bytes:
-        """
-        Algoritmo de compresión adaptativo Virtualsoft:
-        Ajusta la calidad JPEG dinámicamente hasta cumplir el límite estricto de 200KB.
-        """
+
         quality = 95
         output = io.BytesIO()
-        
+
         while quality > 10:
+
             output.seek(0)
             output.truncate(0)
-            # Guardamos como JPEG para optimización de peso/calidad
-            img.save(output, format="JPEG", quality=quality, optimize=True)
+
+            img.save(
+                output,
+                format="JPEG",
+                quality=quality,
+                optimize=True
+            )
+
             size_kb = output.tell() / 1024
-            
+
             if size_kb <= cls.MAX_FILE_SIZE_KB:
                 break
-            quality -= 5 # Reducción progresiva
-            
-        return output.getvalue()
 
-  @classmethod
-async def process_batch(cls, files: List[Tuple[str, bytes]]) -> Tuple[bytes, Dict[str, int]]:
+            quality -= 5
 
-    zip_buffer = io.BytesIO()
+        output.seek(0)
+        return output.read()
 
-    stats = {
-        "CUADRADAS": 0,
-        "RECTANGULARES": 0,
-        "PROCESADAS": 0,
-        "ERRORES": 0
-    }
+    @classmethod
+    async def process_batch(
+        cls,
+        files: List[Tuple[str, bytes]]
+    ) -> Tuple[bytes, Dict[str, int]]:
 
-    with zipfile.ZipFile(
-        zip_buffer,
-        mode="w",
-        compression=zipfile.ZIP_DEFLATED
-    ) as zip_file:
+        zip_buffer = io.BytesIO()
 
-        for filename, content in files:
+        stats = {
+            "CUADRADAS": 0,
+            "RECTANGULARES": 0,
+            "PROCESADAS": 0,
+            "ERRORES": 0
+        }
 
-            try:
+        with zipfile.ZipFile(
+            zip_buffer,
+            mode="w",
+            compression=zipfile.ZIP_DEFLATED
+        ) as zip_file:
 
-                img = Image.open(io.BytesIO(content))
+            for filename, content in files:
 
-                if img.mode != "RGB":
-                    img = img.convert("RGB")
+                try:
 
-                base_name = filename.rsplit(".", 1)[0]
+                    img = Image.open(io.BytesIO(content))
 
-                # CUADRADA
-                sq = cls.smart_resize(img, cls.TARGET_SQUARE)
-                sq_bytes = cls.compress_adaptive(sq)
+                    if img.mode != "RGB":
+                        img = img.convert("RGB")
 
-                zip_file.writestr(
-                    f"CUADRADAS/{base_name}.jpg",
-                    sq_bytes
-                )
+                    base_name = filename.rsplit(".", 1)[0]
 
-                stats["CUADRADAS"] += 1
+                    # CUADRADA
+                    sq = cls.smart_resize(img, cls.TARGET_SQUARE)
 
-                # RECTANGULAR
-                rect = cls.smart_resize(img, cls.TARGET_RECT)
-                rect_bytes = cls.compress_adaptive(rect)
+                    sq_bytes = cls.compress_adaptive(sq)
 
-                zip_file.writestr(
-                    f"RECTANGULARES/{base_name}.jpg",
-                    rect_bytes
-                )
+                    zip_file.writestr(
+                        f"CUADRADAS/{base_name}.jpg",
+                        sq_bytes
+                    )
 
-                stats["RECTANGULARES"] += 1
-                stats["PROCESADAS"] += 1
+                    stats["CUADRADAS"] += 1
 
-            except Exception as e:
+                    # RECTANGULAR
+                    rect = cls.smart_resize(img, cls.TARGET_RECT)
 
-                stats["ERRORES"] += 1
-                logger.error(f"Error processing {filename}: {e}")
+                    rect_bytes = cls.compress_adaptive(rect)
 
-    # CRITICAL FIX
-    zip_buffer.seek(0)
+                    zip_file.writestr(
+                        f"RECTANGULARES/{base_name}.jpg",
+                        rect_bytes
+                    )
 
-    zip_bytes = zip_buffer.read()
+                    stats["RECTANGULARES"] += 1
+                    stats["PROCESADAS"] += 1
 
-    logger.info(f"ZIP size: {len(zip_bytes)} bytes")
+                except Exception as e:
 
-    return zip_bytes, stats
+                    stats["ERRORES"] += 1
+                    logger.error(f"Error processing {filename}: {e}")
+
+        zip_buffer.seek(0)
+
+        zip_bytes = zip_buffer.read()
+
+        logger.info(f"ZIP generated correctly: {len(zip_bytes)} bytes")
+
+        return zip_bytes, stats
