@@ -478,19 +478,31 @@ document.addEventListener('DOMContentLoaded', () => {
             log("Starting batch processing...");
 
             const formData = new FormData();
-            selectedFiles.forEach(file => formData.append('files', file));
+            selectedFiles.forEach(file => {
+                formData.append("files", file);
+            });
+
+            console.log("Sending files:", selectedFiles);
+            console.log("Request URL:", "https://provider-system.onrender.com/api/process-images");
 
             try {
                 const start = Date.now();
-                // CRITICAL: Use the Render backend URL, not localhost or relative path
-                const response = await fetch('https://provider-system.onrender.com/api/process-images', {
-                    method: 'POST',
-                    body: formData
-                });
+                const response = await fetch(
+                    "https://provider-system.onrender.com/api/process-images",
+                    {
+                        method: "POST",
+                        body: formData
+                    }
+                );
 
-                if (!response.ok) throw new Error("Processing failed");
+                const text = await response.text();
+                console.log("Raw response:", text);
 
-                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(text);
+                }
+
+                const data = JSON.parse(text);
                 const timeTaken = ((Date.now() - start) / 1000).toFixed(2);
 
                 log(`SUCCESS: Processed ${selectedFiles.length} images in ${timeTaken}s.`);
@@ -512,7 +524,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }, 3000);
 
             } catch (error) {
-                console.error(error);
+                console.error("Processing error:", error);
                 log(`ERROR: ${error.message}`);
                 processBtn.innerHTML = '<span class="material-icons-round">error</span> Failed';
                 processBtn.disabled = false;
