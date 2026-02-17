@@ -5,16 +5,33 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Centro de Inteligencia de Proveedores | Virtualsoft</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700;800&family=Inter:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
 
     <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    <!-- JSZip for Client-Side Zipping -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
 
 <body>
+    <!-- 3D Intro Screen -->
+    <div id="intro-screen">
+        <canvas id="canvas"></canvas>
+        <div class="hero">
+            <h1>Casino</h1>
+            <h2>System</h2>
+            <button id="start-session-btn" class="neon-btn">
+                INICIAR SESIÓN <span class="material-icons-round" style="margin-left:8px; font-size:18px;">login</span>
+            </button>
+            <a href="https://virtualsoft.com" target="_blank" class="credits-link">Virtualsoft</a>
+        </div>
+    </div>
+
     <!-- Login Overlay -->
     <div id="login-screen" class="login-container">
         <div class="login-card">
@@ -131,15 +148,96 @@
                         <input type="text" data-i18n-placeholder="search_placeholder"
                             placeholder="Buscar proveedor, operación...">
                     </div>
-                    <button class="icon-btn">
+                    <button class="icon-btn" id="btn-notifications">
                         <span class="material-icons-round">notifications</span>
                         <span class="notification-dot"></span>
                     </button>
-                    <button class="icon-btn">
+                    <button class="icon-btn" id="btn-help">
                         <span class="material-icons-round">help_outline</span>
                     </button>
                 </div>
             </header>
+
+            <!-- Notifications Dropdown -->
+            <div class="dropdown-panel" id="notifications-dropdown">
+                <div
+                    style="border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:8px; margin-bottom:8px; display:flex; justify-content:space-between;">
+                    <strong>Notificaciones</strong>
+                    <span style="font-size:10px; color:var(--accent-blue); cursor:pointer;">Marcar todas leídas</span>
+                </div>
+                <!-- Dynamic Content -->
+                <div class="notification-item">
+                    <span class="material-icons-round icon">info</span>
+                    <div>
+                        <div style="font-size:13px;">Sistema actualizado v2.1</div>
+                        <div style="font-size:10px; color:#888;">Hace 5 min</div>
+                    </div>
+                </div>
+                <div class="notification-item">
+                    <span class="material-icons-round icon" style="color:var(--accent-green);">check_circle</span>
+                    <div>
+                        <div style="font-size:13px;">Sincronización completada</div>
+                        <div style="font-size:10px; color:#888;">Hace 1 hora</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Help Dropdown -->
+            <div class="dropdown-panel" id="help-dropdown">
+                <div style="border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:8px; margin-bottom:8px;">
+                    <strong>Centro de Ayuda</strong>
+                </div>
+                <div class="help-content">
+                    <p>Contacte a soporte técnico para incidencias críticas.</p>
+                    <button class="glass-btn full-width" style="margin-top:8px;">
+                        <span class="material-icons-round">email</span> Soporte IT
+                    </button>
+                    <button class="glass-btn full-width" style="margin-top:8px;">
+                        <span class="material-icons-round">menu_book</span> Documentación
+                    </button>
+                </div>
+            </div>
+
+            <!-- ... (Views) ... -->
+
+            <!-- User Modal (Custom Design) -->
+            <div class="modal-wrapper" id="user-modal">
+                <div class="custom-modal">
+                    <div class="modal-header">
+                        <h3 id="modal-title">Agregar Usuario</h3>
+                        <button class="close-modal-btn"
+                            onclick="document.getElementById('user-modal').classList.remove('active')">×</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label>Email Corporativo</label>
+                            <input type="email" id="user-email" class="form-input"
+                                placeholder="usuario@virtualsoft.com">
+                        </div>
+                        <div class="form-group">
+                            <label>Rol del Sistema</label>
+                            <select id="user-role" class="form-input" style="background:rgba(255,255,255,0.05);">
+                                <option value="Viewer">Visualizador</option>
+                                <option value="Editor">Editor</option>
+                                <option value="Admin">Administrador</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Estado</label>
+                            <select id="user-status" class="form-input" style="background:rgba(255,255,255,0.05);">
+                                <option value="Active">Activo</option>
+                                <option value="Inactive">Inactivo</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="glass-btn"
+                            onclick="document.getElementById('user-modal').classList.remove('active')">Cancelar</button>
+                        <button class="neon-btn small" id="save-user-btn">Guardar Usuario</button>
+                    </div>
+                </div>
+            </div>
+
 
             <!-- Dashboard View -->
             <div id="view-dashboard" class="content-view active">
@@ -421,6 +519,72 @@
     </div>
 
     <script src="js/app.js?v=2.1"></script>
+
+    <!-- 3D Cursor Logic (Optimized) -->
+    <script type="module">
+        import TubesCursor from "https://cdn.jsdelivr.net/npm/threejs-components@0.0.19/build/cursors/tubes1.min.js";
+
+        // Wait for full load to ensure layout
+        window.addEventListener('load', () => {
+            const canvas = document.getElementById('canvas');
+            const introScreen = document.getElementById('intro-screen');
+            const startBtn = document.getElementById('start-session-btn');
+
+            if (canvas) {
+                // Resize canvas to match screen explicitly
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+
+                const app = TubesCursor(canvas, {
+                    tubes: {
+                        tubesCount: 3, // Reduced count if supported, but this lib might handle it differently. 
+                        // The lib 'tubes1' is specific. Let's use the standard config but simpler colors.
+                        colors: ["#0df2f2", "#9d4edd", "#ff3b3b"],
+                        lights: {
+                            intensity: 30, // Lower intensity might help rendering? No, just visual.
+                            colors: ["#0df2f2", "#ffffff"] // Fewer light sources
+                        }
+                    }
+                });
+
+                // Optimization: Resize handler
+                window.addEventListener('resize', () => {
+                    if (app && app.resize) app.resize();
+                });
+
+                document.body.addEventListener('click', (e) => {
+                    // Interaction logic
+                    if (introScreen.classList.contains('hidden')) return; // Don't run if hidden
+                    if (e.target.closest('button') || e.target.closest('a')) return;
+
+                    const colors = randomColors(3);
+                    app.tubes.setColors(colors);
+                });
+            }
+
+            function randomColors(count) {
+                return new Array(count).fill(0).map(() => "#" + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0'));
+            }
+
+            if (startBtn) {
+                startBtn.addEventListener('click', () => {
+                    introScreen.classList.add('hidden');
+                    // Give styles time to transition then hide
+                    setTimeout(() => {
+                        introScreen.style.display = 'none';
+                    }, 800);
+                });
+            }
+
+            // Expose for global usage
+            window.hideIntroScreen = () => {
+                if (introScreen) {
+                    introScreen.classList.add('hidden');
+                    setTimeout(() => introScreen.style.display = 'none', 800);
+                }
+            };
+        });
+    </script>
 </body>
 
 </html>

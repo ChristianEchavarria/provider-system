@@ -614,6 +614,122 @@ header h1 {
     left: 26px;
 }
 
+/* --- ORGULLOSAMENTE 3D INTRO SCREEN --- */
+#intro-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 9999;
+    background: #000;
+    overflow: hidden;
+    transition: opacity 0.8s ease-in-out, visibility 0.8s;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#intro-screen.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+#canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    display: block;
+    /* Ensure canvas is block */
+}
+
+.hero {
+    position: absolute;
+    /* Changed from relative to absolute to guarantee overlay */
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10;
+    /* Increased z-index */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    width: 100%;
+    pointer-events: none;
+    /* Text shouldn't block canvas mouse moves */
+    text-align: center;
+}
+
+.hero h1,
+.hero h2 {
+    margin: 0;
+    padding: 0;
+    color: #ffffff;
+    /* Explicit pure white */
+    text-shadow: 0 4px 30px rgba(0, 0, 0, 0.9);
+    /* Stronger shadow */
+    line-height: 1.1;
+    user-select: none;
+    font-family: 'Inter', sans-serif;
+    /* Fallback to Inter if Montserrat missing */
+    text-transform: uppercase;
+}
+
+.hero h1 {
+    font-size: 80px;
+    font-weight: 800;
+    /* Bolder */
+    letter-spacing: 4px;
+}
+
+.hero h2 {
+    font-size: 60px;
+    font-weight: 500;
+    color: var(--accent-blue);
+    margin-bottom: 30px;
+}
+
+.hero button {
+    pointer-events: auto;
+    /* Re-enable clicks */
+    position: relative;
+    z-index: 20;
+    /* Ensure button is clickable */
+    background: rgba(13, 242, 242, 0.2);
+    border: 1px solid var(--accent-blue);
+    color: #fff;
+    padding: 16px 48px;
+    font-size: 18px;
+    font-weight: 700;
+    box-shadow: 0 0 20px rgba(13, 242, 242, 0.4);
+    cursor: pointer;
+    backdrop-filter: blur(5px);
+    transition: all 0.3s ease;
+}
+
+.hero button:hover {
+    background: var(--accent-blue);
+    color: #000;
+    box-shadow: 0 0 40px rgba(13, 242, 242, 0.8);
+    transform: translateY(-2px);
+}
+
+.credits-link {
+    pointer-events: auto;
+    color: rgba(255, 255, 255, 0.5);
+    text-decoration: none;
+    font-size: 12px;
+    margin-top: 20px;
+    position: relative;
+    z-index: 20;
+}
+
 /* Login Styles */
 .login-container {
     position: fixed;
@@ -746,4 +862,169 @@ header h1 {
     background: radial-gradient(circle at 50% 50%, rgba(13, 242, 242, 0.05), transparent 60%);
     z-index: 1;
     pointer-events: none;
+}
+
+/* Light Mode Overrides */
+body.light-mode {
+    --bg-dark: #f0f2f5;
+    --sidebar-bg: #ffffff;
+    --card-bg: #ffffff;
+    --border-color: rgba(0, 0, 0, 0.08);
+    /* Lighter border for light mode */
+    --text-primary: #1e1e24;
+    --text-secondary: #5f6368;
+    background-color: var(--bg-dark);
+}
+
+body.light-mode .upload-zone,
+body.light-mode .panel,
+body.light-mode .kpi-card {
+    background: #fff;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+body.light-mode .admin-actions-grid .action-card {
+    background: #fff;
+    border: 1px dashed rgba(0, 0, 0, 0.1);
+}
+
+body.light-mode .form-input,
+body.light-mode input[type="text"],
+body.light-mode select {
+    background: #f9fafb;
+    color: #333;
+    border-color: #ddd;
+}
+
+body.light-mode .glass-table th {
+    border-bottom: 2px solid #eee;
+}
+
+body.light-mode .glass-table td {
+    border-bottom: 1px solid #eee;
+    color: #333;
+}
+
+/* Modal Overlay */
+.modal-wrapper {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    z-index: 9999;
+    display: none;
+    justify-content: center;
+    align-items: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.modal-wrapper.active {
+    display: flex;
+    opacity: 1;
+}
+
+.custom-modal {
+    background: var(--sidebar-bg);
+    border: 1px solid var(--border-color);
+    width: 480px;
+    padding: 32px;
+    border-radius: 16px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+    position: relative;
+    transform: translateY(20px);
+    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.modal-wrapper.active .custom-modal {
+    transform: translateY(0);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 16px;
+}
+
+.modal-header h3 {
+    margin: 0;
+    color: var(--text-primary);
+}
+
+.close-modal-btn {
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.modal-body {
+    margin-bottom: 24px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.form-input {
+    width: 100%;
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-primary);
+    margin-bottom: 16px;
+    box-sizing: border-box;
+    /* Important fix */
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+/* Dropdowns */
+.dropdown-panel {
+    position: absolute;
+    top: 70px;
+    right: 24px;
+    width: 320px;
+    background: var(--sidebar-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    padding: 16px;
+    z-index: 5000;
+    display: none;
+    flex-direction: column;
+}
+
+.dropdown-panel.active {
+    display: flex;
+    animation: fadeInDown 0.2s ease-out;
+}
+
+@keyframes fadeInDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
