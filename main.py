@@ -69,6 +69,13 @@ STATIC_DIR = os.path.join(BASE_DIR, "static")
 
 if os.path.exists(STATIC_DIR):
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+    # Mount css and js at root so relative paths in index.html work
+    css_dir = os.path.join(STATIC_DIR, "css")
+    js_dir = os.path.join(STATIC_DIR, "js")
+    if os.path.exists(css_dir):
+        app.mount("/css", StaticFiles(directory=css_dir), name="css")
+    if os.path.exists(js_dir):
+        app.mount("/js", StaticFiles(directory=js_dir), name="js")
     print("Static files mounted")
 else:
     print("Static directory not found:", STATIC_DIR)
