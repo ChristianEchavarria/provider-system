@@ -1,0 +1,14 @@
+# Environment variables
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Data cache
+data/mstr_cache.csv
+data/mstr_last_sync.json
+
+# Firebase
+.firebase/

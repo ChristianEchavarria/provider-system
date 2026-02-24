@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html lang="es">
 
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Centro de Inteligencia de Proveedores | Virtualsoft</title>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700;800&family=Inter:wght@400;500;600;700&display=swap"
-        rel="stylesheet">
+    <title>CasinoSystem</title>
+    <link rel="icon" type="image/png"
+        href="https://drive.google.com/thumbnail?id=18EgO23WKDbGFuHMitXtasu3cKWZ3MCpv&sz=w64">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
 
@@ -16,6 +16,8 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     <!-- JSZip for Client-Side Zipping -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <!-- Chart.js for Analytics Charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 </head>
 
 <body>
@@ -23,12 +25,25 @@
     <div id="intro-screen">
         <canvas id="canvas"></canvas>
         <div class="hero">
-            <h1>Casino</h1>
-            <h2>System</h2>
-            <button id="start-session-btn" class="neon-btn">
-                INICIAR SESIÓN <span class="material-icons-round" style="margin-left:8px; font-size:18px;">login</span>
+            <a href="https://virtualsoftlatam.com/" target="_blank" class="credits-link">
+                <img src="https://virtualsoftlatam.com/wp-content/uploads/2025/06/Group-1.png" alt="Virtualsoft Latam"
+                    class="credits-logo">
+            </a>
+
+            <button id="start-session-btn" class="shiny-btn group">
+                <div class="glow-container">
+                    <div class="glow"></div>
+                    <div class="shine"></div>
+                </div>
+                <div class="inner-bg"></div>
+                <div class="btn-text">
+                    INICIAR SESIÓN <span class="material-icons-round"
+                        style="margin-left:8px; font-size:18px;">login</span>
+                </div>
             </button>
-            <a href="https://virtualsoft.com" target="_blank" class="credits-link">Virtualsoft</a>
+        </div>
+        <div class="intro-footer">
+            &copy; Powered By Nostra - Virtualsoft 2026 | Casino
         </div>
     </div>
 
@@ -36,9 +51,10 @@
     <div id="login-screen" class="login-container">
         <div class="login-card">
             <div class="login-header">
-                <span class="logo-icon-large">V</span>
-                <h2 style="color:white; margin:10px 0;">ACCESS PORTAL</h2>
-                <p data-i18n="login_subtitle" style="color:#aaa;">Secure Provider Intelligence System</p>
+                <img src="https://drive.google.com/thumbnail?id=18EgO23WKDbGFuHMitXtasu3cKWZ3MCpv&sz=w128" alt="Logo"
+                    class="logo-icon-large" />
+                <h2 style="color:white; margin:10px 0;">PORTAL DE ACCESO</h2>
+                <p data-i18n="login_subtitle" style="color:#aaa;">Automatización Inteligente</p>
             </div>
 
             <form id="login-form">
@@ -52,12 +68,8 @@
                 </div>
 
                 <div class="login-options">
-                    <label class="checkbox-container">
-                        <input type="checkbox" checked>
-                        <span class="checkmark"></span>
-                        <span data-i18n="remember_me">Recuérdame</span>
-                    </label>
-                    <a href="#" class="forgot-link" data-i18n="forgot_pass">¿Olvidaste tu contraseña?</a>
+                    <a href="#" class="forgot-link" data-i18n="forgot_pass" style="margin-left: auto;">¿Olvidaste tu
+                        contraseña?</a>
                 </div>
 
                 <div id="login-error" class="login-error"></div>
@@ -68,19 +80,20 @@
                 </button>
             </form>
             <div class="login-footer">
-                <p>Virtualsoft Intelligence System v2.0</p>
+                <p>Powered By Nostra</p>
             </div>
         </div>
         <div class="login-bg-effect"></div>
     </div>
 
     <!-- Main App (Hidden by default) -->
+    <!-- Main App (Hidden by default) -->
     <div class="app-container" id="app-container" style="display:none;">
         <!-- Sidebar -->
         <aside class="sidebar">
             <div class="brand">
-                <span class="logo-icon">VS</span>
-                <h2 data-i18n="brand_title">INTELIGENCIA</h2>
+                <img src="https://drive.google.com/thumbnail?id=1syzlZ9qxZpevPfvCTySfn1oIzFEPTwzI&sz=w128"
+                    alt="VS Inteligencia" class="logo-icon" />
             </div>
 
             <nav class="nav-menu">
@@ -100,6 +113,11 @@
                 <a href="#" class="nav-item" data-target="reports">
                     <span class="material-icons-round">assessment</span>
                     <span data-i18n="nav_reports">Reportes</span>
+                </a>
+                <a href="#" class="nav-item" data-target="analytics">
+                    <span class="material-icons-round">casino</span>
+                    <span>Analytics Casino</span>
+                    <span class="badge" style="background: linear-gradient(135deg, #ff6b35, #f7c948);">LIVE</span>
                 </a>
                 <div class="nav-spacer"></div>
                 <a href="#" class="nav-item" data-target="config">
@@ -126,7 +144,7 @@
             <!-- Header -->
             <header class="top-header">
                 <div class="header-left">
-                    <h1 data-i18n="header_title">Centro de Inteligencia de Proveedores</h1>
+                    <h1 data-i18n="header_title">Producto Casino</h1>
                     <span class="status-pill online">
                         <span class="dot"></span> <span data-i18n="system_status">Sistema En Línea</span>
                     </span>
@@ -190,7 +208,7 @@
                 <div class="help-content">
                     <p>Contacte a soporte técnico para incidencias críticas.</p>
                     <button class="glass-btn full-width" style="margin-top:8px;">
-                        <span class="material-icons-round">email</span> Soporte IT
+                        <span class="material-icons-round">email</span> Soporte
                     </button>
                     <button class="glass-btn full-width" style="margin-top:8px;">
                         <span class="material-icons-round">menu_book</span> Documentación
@@ -468,6 +486,113 @@
                 </div>
             </div>
 
+            <!-- Analytics Casino View -->
+            <div id="view-analytics" class="content-view">
+                <!-- Analytics Header -->
+                <div class="analytics-header">
+                    <div class="analytics-title-row">
+                        <h2><span class="material-icons-round" style="vertical-align:middle; margin-right:8px; color:#f7c948;">casino</span>Analytics Casino</h2>
+                        <div class="sync-controls">
+                            <span class="sync-status" id="analytics-sync-status">Cargando...</span>
+                            <button class="glass-btn small" id="btn-analytics-sync">
+                                <span class="material-icons-round">sync</span> Sincronizar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Casino KPI Row -->
+                <div class="kpi-grid">
+                    <div class="kpi-card">
+                        <div class="kpi-icon" style="background: linear-gradient(135deg, #6c5ce7, #a855f7);">
+                            <span class="material-icons-round">sports_esports</span>
+                        </div>
+                        <div class="kpi-info">
+                            <span class="label">Total Spins</span>
+                            <span class="value" id="kpi-spins">--</span>
+                        </div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-icon" style="background: linear-gradient(135deg, #00b894, #55efc4);">
+                            <span class="material-icons-round">payments</span>
+                        </div>
+                        <div class="kpi-info">
+                            <span class="label">Total Apuestas</span>
+                            <span class="value" id="kpi-bets">--</span>
+                        </div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-icon" style="background: linear-gradient(135deg, #ff6b35, #f7c948);">
+                            <span class="material-icons-round">trending_up</span>
+                        </div>
+                        <div class="kpi-info">
+                            <span class="label">GGR Total</span>
+                            <span class="value" id="kpi-ggr">--</span>
+                        </div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-icon" style="background: linear-gradient(135deg, #0984e3, #74b9ff);">
+                            <span class="material-icons-round">percent</span>
+                        </div>
+                        <div class="kpi-info">
+                            <span class="label">RTP Promedio</span>
+                            <span class="value" id="kpi-rtp">--%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Row -->
+                <div class="analytics-charts-grid">
+                    <div class="panel chart-panel-wide">
+                        <div class="panel-header">
+                            <h3><span class="material-icons-round" style="font-size:18px; margin-right:6px;">bar_chart</span>Apuestas vs Premios (Top 15)</h3>
+                        </div>
+                        <div class="chart-wrapper">
+                            <canvas id="chart-bets-vs-prizes"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="analytics-charts-grid dual">
+                    <div class="panel chart-panel">
+                        <div class="panel-header">
+                            <h3><span class="material-icons-round" style="font-size:18px; margin-right:6px;">leaderboard</span>GGR por Proveedor</h3>
+                        </div>
+                        <div class="chart-wrapper">
+                            <canvas id="chart-ggr-provider"></canvas>
+                        </div>
+                    </div>
+                    <div class="panel chart-panel">
+                        <div class="panel-header">
+                            <h3><span class="material-icons-round" style="font-size:18px; margin-right:6px;">donut_large</span>Distribucion RTP</h3>
+                        </div>
+                        <div class="chart-wrapper">
+                            <canvas id="chart-rtp-dist"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Data Table -->
+                <div class="panel" style="margin-top:20px;">
+                    <div class="panel-header">
+                        <h3><span class="material-icons-round" style="font-size:18px; margin-right:6px;">table_chart</span>Detalle por Producto</h3>
+                        <div class="actions">
+                            <input type="text" id="analytics-search" class="glass-input" placeholder="Buscar proveedor..." style="width:200px;">
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table class="glass-table" id="analytics-table">
+                            <thead id="analytics-thead">
+                                <tr><!-- Dynamic --></tr>
+                            </thead>
+                            <tbody id="analytics-tbody">
+                                <!-- Dynamic -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
             <!-- Config View -->
             <div id="view-config" class="content-view">
                 <div class="panel config-panel">
@@ -573,6 +698,20 @@
                     setTimeout(() => {
                         introScreen.style.display = 'none';
                     }, 800);
+                });
+            }
+
+            // Shiny Button Pointer Move Logic
+            if (startBtn) {
+                startBtn.addEventListener('pointermove', (e) => {
+                    const rect = startBtn.getBoundingClientRect();
+                    const mouseX = (e.clientX - rect.left) / rect.width;
+                    const mouseY = (e.clientY - rect.top) / rect.height;
+                    const glowContainer = startBtn.querySelector('.glow-container');
+                    if (glowContainer) {
+                        glowContainer.style.setProperty('--mx', `${mouseX * 100}%`);
+                        glowContainer.style.setProperty('--my', `${mouseY * 100}%`);
+                    }
                 });
             }
 

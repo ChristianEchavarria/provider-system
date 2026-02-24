@@ -170,55 +170,126 @@ document.addEventListener('DOMContentLoaded', () => {
     const logoutBtn = document.getElementById('logout-btn');
     const userNameDisplay = document.getElementById('user-name');
 
-    // Auth State Listener
-    firebase.auth().onAuthStateChanged((user) => {
-        if (user) {
-            // User is signed in
-            console.log("User logged in:", user.email);
-            loginScreen.style.display = 'none';
-            appContainer.style.display = 'flex'; // Restore inline-flex or flex
-            appContainer.classList.add('fade-in'); // Optional animation class
+    // Force persistence to NONE to require login on every refresh
+    firebase.auth().setPersistence(firebase.auth.Auth.Persistence.NONE).then(() => {
+        // Auth State Listener
+        firebase.auth().onAuthStateChanged((user) => {
+            if (user) {
+                // User is signed in
+                console.log("User logged in:", user.email);
+                loginScreen.style.display = 'none';
+                appContainer.style.display = 'flex'; // Restore inline-flex or flex
+                appContainer.classList.add('fade-in'); // Optional animation class
 
-            // HIDE INTRO SCREEN IF LOGGED IN
-            if (window.hideIntroScreen) window.hideIntroScreen();
-            const intro = document.getElementById('intro-screen');
-            if (intro) intro.classList.add('hidden'); // Fallback direct access
+                // HIDE INTRO SCREEN IF LOGGED IN
+                if (window.hideIntroScreen) window.hideIntroScreen();
+                const intro = document.getElementById('intro-screen');
+                if (intro) intro.classList.add('hidden'); // Fallback direct access
 
-            if (user.email) userNameDisplay.textContent = user.email.split('@')[0];
+                if (user.email) userNameDisplay.textContent = user.email.split('@')[0];
 
-            // Load data only when logged in
-            loadDashboardData();
-        } else {
-            // User is signed out
-            console.log("User logged out");
-            loginScreen.style.display = 'flex';
-            appContainer.style.display = 'none';
-        }
+                // Load data only when logged in
+                loadDashboardData();
+            } else {
+                // User is signed out
+                console.log("User logged out");
+                loginScreen.style.display = 'flex';
+                appContainer.style.display = 'none';
+            }
+        });
     });
 
-    // Login Handler
+    // Login Handler — with rate-limit protection & friendly error messages
+    let loginAttempts = [];
+    let rateLimitCooldown = false;
+    let cooldownTimerId = null;
+
+    function getFirebaseErrorMessage(errorCode) {
+        const messages = {
+            'auth/too-many-requests': '⚠️ Demasiados intentos fallidos. Tu dispositivo ha sido bloqueado temporalmente por seguridad.',
+            'auth/wrong-password': 'Contraseña incorrecta. Verifica e intenta de nuevo.',
+            'auth/user-not-found': 'No se encontró una cuenta con ese correo electrónico.',
+            'auth/invalid-email': 'El correo electrónico no es válido.',
+            'auth/user-disabled': 'Esta cuenta ha sido deshabilitada. Contacta al administrador.',
+            'auth/invalid-credential': 'Credenciales inválidas. Verifica tu correo y contraseña.',
+            'auth/network-request-failed': 'Error de conexión. Verifica tu conexión a internet.',
+        };
+        return messages[errorCode] || 'Error de autenticación. Intenta de nuevo.';
+    }
+
+    function startCooldownTimer(seconds) {
+        rateLimitCooldown = true;
+        const btn = document.getElementById('login-btn');
+        let remaining = seconds;
+
+        btn.disabled = true;
+
+        if (cooldownTimerId) clearInterval(cooldownTimerId);
+
+        cooldownTimerId = setInterval(() => {
+            remaining--;
+            if (remaining <= 0) {
+                clearInterval(cooldownTimerId);
+                cooldownTimerId = null;
+                rateLimitCooldown = false;
+                loginAttempts = [];
+                btn.disabled = false;
+                btn.innerHTML = `<span>AUTENTICAR</span><span class="material-icons-round">arrow_forward</span>`;
+                loginError.textContent = '';
+            } else {
+                btn.innerHTML = `<span class="material-icons-round">hourglass_top</span> Espera ${remaining}s`;
+                loginError.textContent = `⏳ Debes esperar ${remaining} segundos antes de intentar de nuevo.`;
+            }
+        }, 1000);
+
+        btn.innerHTML = `<span class="material-icons-round">hourglass_top</span> Espera ${remaining}s`;
+    }
+
     loginForm.addEventListener('submit', (e) => {
         e.preventDefault();
+
+        if (rateLimitCooldown) return;
+
         const email = document.getElementById('email').value;
         const password = document.getElementById('password').value;
         const btn = document.getElementById('login-btn');
 
+        // Client-side rate limiting: max 5 attempts in 2 minutes
+        const now = Date.now();
+        loginAttempts = loginAttempts.filter(t => now - t < 120000);
+        if (loginAttempts.length >= 5) {
+            loginError.textContent = '⚠️ Demasiados intentos. Espera un momento antes de intentar de nuevo.';
+            startCooldownTimer(60);
+            return;
+        }
+        loginAttempts.push(now);
+
         btn.disabled = true;
-        btn.innerHTML = '<span class="material-icons-round spinning">refresh</span> Processing...';
+        btn.innerHTML = '<span class="material-icons-round spinning">refresh</span> Procesando...';
         loginError.textContent = '';
 
-        firebase.auth().signInWithEmailAndPassword(email, password)
+        firebase.auth().setPersistence(firebase.auth.Auth.Persistence.NONE)
+            .then(() => {
+                return firebase.auth().signInWithEmailAndPassword(email, password);
+            })
             .then((userCredential) => {
-                // Signed in
-                // UI update happens in onAuthStateChanged
+                // Signed in — UI update happens in onAuthStateChanged
+                loginAttempts = []; // Reset on success
             })
             .catch((error) => {
                 const errorCode = error.code;
-                const errorMessage = error.message;
-                console.error("Login Error:", error);
-                loginError.textContent = "Error: " + errorMessage;
-                btn.disabled = false;
-                btn.innerHTML = `<span>AUTHENTICATE</span><span class="material-icons-round">arrow_forward</span>`;
+                console.error("Login Error:", errorCode, error.message);
+
+                const friendlyMsg = getFirebaseErrorMessage(errorCode);
+                loginError.textContent = friendlyMsg;
+
+                if (errorCode === 'auth/too-many-requests') {
+                    // Firebase has rate-limited us — start a 60s cooldown
+                    startCooldownTimer(60);
+                } else {
+                    btn.disabled = false;
+                    btn.innerHTML = `<span>AUTENTICAR</span><span class="material-icons-round">arrow_forward</span>`;
+                }
             });
     });
 
@@ -281,13 +352,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Trigger specific load if needed
             if (target === 'dashboard') loadDashboardData();
+            if (target === 'analytics') loadAnalyticsData();
         });
     });
 
     // === Dashboard Logic ===
     async function loadDashboardData() {
         try {
-            const response = await fetch("http://localhost:8000/api/dashboard-data");
+            const response = await fetch("https://provider-system.onrender.com/api/dashboard-data");
             const data = await response.json();
 
             if (data.error) {
@@ -435,6 +507,333 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // === Analytics Casino Logic ===
+    const API_BASE = "https://provider-system.onrender.com";
+    let analyticsCharts = {};
+    let analyticsData = null;
+
+    // Chart.js global defaults for dark theme
+    if (typeof Chart !== 'undefined') {
+        Chart.defaults.color = '#aaa';
+        Chart.defaults.borderColor = 'rgba(255,255,255,0.06)';
+        Chart.defaults.font.family = "'Inter', 'Segoe UI', sans-serif";
+    }
+
+    function formatNumber(n) {
+        if (n === null || n === undefined || isNaN(n)) return '--';
+        if (Math.abs(n) >= 1_000_000) return (n / 1_000_000).toFixed(2) + 'M';
+        if (Math.abs(n) >= 1_000) return (n / 1_000).toFixed(1) + 'K';
+        return n.toLocaleString('es-CO', { maximumFractionDigits: 2 });
+    }
+
+    function formatCurrency(n) {
+        if (n === null || n === undefined || isNaN(n)) return '--';
+        return '$' + formatNumber(n);
+    }
+
+    function findColumn(columns, keywords) {
+        // Fuzzy find a column by keywords
+        const lower = columns.map(c => c.toLowerCase());
+        for (const kw of keywords) {
+            const kwLower = kw.toLowerCase();
+            const idx = lower.findIndex(c => c.includes(kwLower));
+            if (idx !== -1) return columns[idx];
+        }
+        return null;
+    }
+
+    async function loadAnalyticsData() {
+        const syncStatus = document.getElementById('analytics-sync-status');
+        if (syncStatus) syncStatus.textContent = 'Cargando datos...';
+
+        try {
+            const response = await fetch(`${API_BASE}/api/analytics-data`);
+            const data = await response.json();
+
+            if (!data.success || !data.records || data.records.length === 0) {
+                if (syncStatus) syncStatus.textContent = data.error || 'Sin datos disponibles';
+                return;
+            }
+
+            analyticsData = data;
+            const records = data.records;
+            const columns = data.columns;
+
+            // Detect column names dynamically
+            const colSpins = findColumn(columns, ['spin', 'spins', 'cantidad de jugadas', 'jugadas']);
+            const colBets = findColumn(columns, ['apuesta', 'bet', 'valor apostado', 'stake', 'apuestas']);
+            const colPrizes = findColumn(columns, ['premio', 'prize', 'ganancia', 'payout', 'premios']);
+            const colGGR = findColumn(columns, ['ggr', 'gross gaming', 'ingreso bruto']);
+            const colRTP = findColumn(columns, ['rtp', 'retorno', 'return to player']);
+            const colName = findColumn(columns, ['nombre', 'name', 'producto', 'product', 'juego', 'game']);
+            const colProvider = findColumn(columns, ['proveedor', 'provider', 'sub-proveedor']);
+
+            // Compute KPIs
+            let totalSpins = 0, totalBets = 0, totalPrizes = 0, totalGGR = 0;
+            let rtpValues = [];
+
+            records.forEach(r => {
+                if (colSpins && typeof r[colSpins] === 'number') totalSpins += r[colSpins];
+                if (colBets && typeof r[colBets] === 'number') totalBets += r[colBets];
+                if (colPrizes && typeof r[colPrizes] === 'number') totalPrizes += r[colPrizes];
+                if (colGGR && typeof r[colGGR] === 'number') totalGGR += r[colGGR];
+                if (colRTP && typeof r[colRTP] === 'number' && r[colRTP] > 0) rtpValues.push(r[colRTP]);
+            });
+
+            // If no GGR column, compute from bets - prizes
+            if (!colGGR && colBets && colPrizes) totalGGR = totalBets - totalPrizes;
+
+            const avgRTP = rtpValues.length > 0
+                ? rtpValues.reduce((a, b) => a + b, 0) / rtpValues.length
+                : (totalBets > 0 ? (totalPrizes / totalBets) * 100 : 0);
+
+            // Update KPI cards
+            const s = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+            s('kpi-spins', formatNumber(totalSpins));
+            s('kpi-bets', formatCurrency(totalBets));
+            s('kpi-ggr', formatCurrency(totalGGR));
+            s('kpi-rtp', avgRTP.toFixed(1) + '%');
+
+            // ---- CHART 1: Bets vs Prizes (Top 15) ----
+            const labelCol = colName || colProvider || columns[0];
+            const sortedByBets = [...records]
+                .filter(r => colBets && typeof r[colBets] === 'number' && r[colBets] > 0)
+                .sort((a, b) => (b[colBets] || 0) - (a[colBets] || 0))
+                .slice(0, 15);
+
+            const labels1 = sortedByBets.map(r => {
+                const name = String(r[labelCol] || '');
+                return name.length > 20 ? name.substring(0, 18) + '..' : name;
+            });
+            const dataBets1 = sortedByBets.map(r => r[colBets] || 0);
+            const dataPrizes1 = sortedByBets.map(r => (colPrizes ? r[colPrizes] : 0) || 0);
+
+            renderChart('chart-bets-vs-prizes', 'bar', {
+                labels: labels1,
+                datasets: [
+                    {
+                        label: 'Apuestas',
+                        data: dataBets1,
+                        backgroundColor: 'rgba(0, 184, 148, 0.7)',
+                        borderColor: '#00b894',
+                        borderWidth: 1,
+                        borderRadius: 4,
+                    },
+                    {
+                        label: 'Premios',
+                        data: dataPrizes1,
+                        backgroundColor: 'rgba(108, 92, 231, 0.7)',
+                        borderColor: '#6c5ce7',
+                        borderWidth: 1,
+                        borderRadius: 4,
+                    }
+                ]
+            }, {
+                indexAxis: 'x',
+                plugins: { legend: { position: 'top' } },
+                scales: {
+                    y: {
+                        ticks: { callback: v => formatCurrency(v) },
+                        grid: { color: 'rgba(255,255,255,0.04)' }
+                    },
+                    x: { grid: { display: false } }
+                }
+            });
+
+            // ---- CHART 2: GGR by Provider (horizontal bar) ----
+            const ggrByProvider = {};
+            records.forEach(r => {
+                const prov = r[colProvider || labelCol] || 'Sin nombre';
+                const ggr = colGGR ? (r[colGGR] || 0) : ((r[colBets] || 0) - (r[colPrizes] || 0));
+                ggrByProvider[prov] = (ggrByProvider[prov] || 0) + ggr;
+            });
+            const sortedGGR = Object.entries(ggrByProvider)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 10);
+
+            const labelsGGR = sortedGGR.map(e => {
+                const name = e[0];
+                return name.length > 25 ? name.substring(0, 22) + '..' : name;
+            });
+            const dataGGR = sortedGGR.map(e => e[1]);
+            const ggrColors = dataGGR.map(v => v >= 0 ? 'rgba(255, 107, 53, 0.75)' : 'rgba(255, 59, 59, 0.75)');
+
+            renderChart('chart-ggr-provider', 'bar', {
+                labels: labelsGGR,
+                datasets: [{
+                    label: 'GGR',
+                    data: dataGGR,
+                    backgroundColor: ggrColors,
+                    borderRadius: 4,
+                    borderSkipped: false,
+                }]
+            }, {
+                indexAxis: 'y',
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: {
+                        ticks: { callback: v => formatCurrency(v) },
+                        grid: { color: 'rgba(255,255,255,0.04)' }
+                    },
+                    y: { grid: { display: false } }
+                }
+            });
+
+            // ---- CHART 3: RTP Distribution (doughnut) ----
+            const rtpBuckets = { 'RTP < 90%': 0, '90-95%': 0, '95-97%': 0, '97-100%': 0, 'RTP > 100%': 0 };
+            records.forEach(r => {
+                let rtp;
+                if (colRTP && typeof r[colRTP] === 'number' && r[colRTP] > 0) {
+                    rtp = r[colRTP];
+                } else if (colBets && colPrizes && r[colBets] > 0) {
+                    rtp = (r[colPrizes] / r[colBets]) * 100;
+                } else {
+                    return;
+                }
+                if (rtp < 90) rtpBuckets['RTP < 90%']++;
+                else if (rtp < 95) rtpBuckets['90-95%']++;
+                else if (rtp < 97) rtpBuckets['95-97%']++;
+                else if (rtp <= 100) rtpBuckets['97-100%']++;
+                else rtpBuckets['RTP > 100%']++;
+            });
+
+            renderChart('chart-rtp-dist', 'doughnut', {
+                labels: Object.keys(rtpBuckets),
+                datasets: [{
+                    data: Object.values(rtpBuckets),
+                    backgroundColor: [
+                        '#ff3b3b', '#ff6b35', '#f7c948', '#00b894', '#6c5ce7',
+                    ],
+                    borderWidth: 0,
+                    hoverOffset: 8,
+                }]
+            }, {
+                plugins: {
+                    legend: { position: 'bottom', labels: { padding: 12, usePointStyle: true } }
+                },
+                cutout: '60%',
+            });
+
+            // ---- DATA TABLE ----
+            renderAnalyticsTable(records, columns);
+
+            // ---- SYNC STATUS ----
+            if (syncStatus) {
+                const ts = data.timestamp ? new Date(data.timestamp).toLocaleString('es-CO') : 'N/A';
+                syncStatus.innerHTML = `<span class="material-icons-round" style="font-size:14px; color:#00b894; vertical-align:middle;">check_circle</span> ${data.row_count} registros | Ultima sync: ${ts}`;
+            }
+
+        } catch (e) {
+            console.error("Analytics fetch error:", e);
+            if (syncStatus) syncStatus.textContent = 'Error al cargar datos';
+        }
+    }
+
+    function renderChart(canvasId, type, data, options = {}) {
+        const canvas = document.getElementById(canvasId);
+        if (!canvas || typeof Chart === 'undefined') return;
+
+        // Destroy existing chart if present
+        if (analyticsCharts[canvasId]) {
+            analyticsCharts[canvasId].destroy();
+        }
+
+        analyticsCharts[canvasId] = new Chart(canvas, {
+            type,
+            data,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 800 },
+                ...options,
+            }
+        });
+    }
+
+    function renderAnalyticsTable(records, columns) {
+        const thead = document.getElementById('analytics-thead');
+        const tbody = document.getElementById('analytics-tbody');
+        if (!thead || !tbody) return;
+
+        // Show max 8 columns
+        const visibleCols = columns.slice(0, 8);
+
+        thead.innerHTML = '<tr>' + visibleCols.map(c =>
+            `<th style="font-size:12px; white-space:nowrap;">${c}</th>`
+        ).join('') + '</tr>';
+
+        const renderRows = (filter = '') => {
+            tbody.innerHTML = '';
+            const filtered = filter
+                ? records.filter(r => Object.values(r).some(v => String(v).toLowerCase().includes(filter.toLowerCase())))
+                : records;
+
+            filtered.slice(0, 100).forEach(r => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = visibleCols.map((col, i) => {
+                    let val = r[col];
+                    if (typeof val === 'number') {
+                        val = val.toLocaleString('es-CO', { maximumFractionDigits: 2 });
+                    }
+                    const style = i === 0 ? 'font-weight:600; color:#fff;' : '';
+                    return `<td style="${style} font-size:12px; white-space:nowrap;">${val ?? '-'}</td>`;
+                }).join('');
+                tbody.appendChild(tr);
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="' + visibleCols.length + '" style="text-align:center; color:#666; padding:20px;">Sin resultados</td></tr>';
+            }
+        };
+
+        renderRows();
+
+        // Search filter
+        const searchInput = document.getElementById('analytics-search');
+        if (searchInput) {
+            searchInput.oninput = (e) => renderRows(e.target.value);
+        }
+    }
+
+    // Sync Button Handler
+    const syncBtn = document.getElementById('btn-analytics-sync');
+    if (syncBtn) {
+        syncBtn.addEventListener('click', async () => {
+            syncBtn.disabled = true;
+            syncBtn.innerHTML = '<span class="material-icons-round spinning">sync</span> Sincronizando...';
+            const syncStatus = document.getElementById('analytics-sync-status');
+            if (syncStatus) syncStatus.textContent = 'Extrayendo datos de MicroStrategy...';
+
+            try {
+                await fetch(`${API_BASE}/api/analytics-sync`, { method: 'POST' });
+                // Wait a bit for extraction to start, then poll
+                setTimeout(async () => {
+                    await loadAnalyticsData();
+                    syncBtn.disabled = false;
+                    syncBtn.innerHTML = '<span class="material-icons-round">sync</span> Sincronizar';
+                    if (typeof showNotification === 'function') {
+                        showNotification('Datos actualizados correctamente', 'success');
+                    }
+                }, 15000);
+            } catch (e) {
+                syncBtn.disabled = false;
+                syncBtn.innerHTML = '<span class="material-icons-round">sync</span> Sincronizar';
+                if (typeof showNotification === 'function') {
+                    showNotification('Error al sincronizar: ' + e.message, 'error');
+                }
+            }
+        });
+    }
+
+    // Auto-refresh analytics every 60 minutes
+    setInterval(() => {
+        const analyticsView = document.getElementById('view-analytics');
+        if (analyticsView && analyticsView.classList.contains('active')) {
+            loadAnalyticsData();
+        }
+    }, 60 * 60 * 1000);
+
+
     // === VisionProcessor Logic (Client-Side Optimized) ===
     // === VisionProcessor Logic (Client-Side Optimized) ===
     (function () {
@@ -495,7 +894,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 processBtn.disabled = true;
                 processBtn.innerHTML = '<span class="material-icons-round spinning">refresh</span> Processing...';
                 logDiv.innerHTML = ''; // Clear previous logs
-                log("Starting Client-Side Batch Processing (Clean Center Crop)...");
+                log("Starting Client-Side Batch Processing (Content-Aware Smart Crop)...");
 
                 try {
                     // Initialize JSZip
@@ -617,7 +1016,151 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             // --- IMAGE MANIPULATION HELPER ---
-            // --- STRICT PROPORTIONAL SCALE + CENTER CROP (Source-Based) ---
+            // --- CONTENT-AWARE SMART CROP (iLoveIMG Style) ---
+            const RATIO_TOLERANCE = 0.02; // ±2%
+
+            /**
+             * Detect center of visual interest using:
+             * 1. Skin-tone detection (face proxy)
+             * 2. Sobel edge density (content saliency)
+             * 3. Weighted centroid on 5x5 grid
+             * Returns { cx, cy } as normalized 0.0–1.0 coordinates.
+             */
+            function findInterestCenter(bitmap) {
+                // Work on a small thumbnail for performance (max 200px)
+                const maxDim = Math.max(bitmap.width, bitmap.height);
+                const thumbScale = Math.min(1.0, 200 / maxDim);
+                const tw = Math.max(1, Math.round(bitmap.width * thumbScale));
+                const th = Math.max(1, Math.round(bitmap.height * thumbScale));
+
+                const offCanvas = document.createElement('canvas');
+                offCanvas.width = tw;
+                offCanvas.height = th;
+                const offCtx = offCanvas.getContext('2d');
+                offCtx.drawImage(bitmap, 0, 0, tw, th);
+                const imageData = offCtx.getImageData(0, 0, tw, th);
+                const data = imageData.data;
+
+                // --- Layer 1: Skin-tone detection (face proxy) ---
+                let skinSumX = 0, skinSumY = 0, skinTotal = 0;
+
+                for (let y = 0; y < th; y++) {
+                    for (let x = 0; x < tw; x++) {
+                        const i = (y * tw + x) * 4;
+                        const r = data[i], g = data[i + 1], b = data[i + 2];
+
+                        // RGB skin-tone heuristic
+                        if (r > 95 && g > 40 && b > 20 &&
+                            r > g && r > b &&
+                            Math.abs(r - g) > 15 &&
+                            r - Math.min(g, b) > 15) {
+                            // Upper-third bias for faces
+                            const verticalBoost = 1.0 + Math.max(0, (0.4 - y / th)) * 2.0;
+                            skinSumX += x * verticalBoost;
+                            skinSumY += y * verticalBoost;
+                            skinTotal += verticalBoost;
+                        }
+                    }
+                }
+
+                // --- Layer 2: Sobel edge detection ---
+                // Convert to grayscale array
+                const gray = new Float32Array(tw * th);
+                for (let i = 0; i < tw * th; i++) {
+                    const idx = i * 4;
+                    gray[i] = data[idx] * 0.299 + data[idx + 1] * 0.587 + data[idx + 2] * 0.114;
+                }
+
+                // Sobel magnitude on 5x5 grid
+                const gridCols = 5, gridRows = 5;
+                const cellW = Math.max(1, Math.floor(tw / gridCols));
+                const cellH = Math.max(1, Math.floor(th / gridRows));
+                const gridScores = [];
+
+                for (let gy = 0; gy < gridRows; gy++) {
+                    const row = [];
+                    for (let gx = 0; gx < gridCols; gx++) {
+                        let score = 0, pixelCount = 0;
+                        const xStart = gx * cellW;
+                        const yStart = gy * cellH;
+                        const xEnd = Math.min(xStart + cellW, tw - 1);
+                        const yEnd = Math.min(yStart + cellH, th - 1);
+
+                        for (let py = yStart + 1; py < yEnd; py++) {
+                            for (let px = xStart + 1; px < xEnd; px++) {
+                                // Sobel 3x3 kernel
+                                const tl = gray[(py - 1) * tw + (px - 1)];
+                                const tc = gray[(py - 1) * tw + px];
+                                const tr = gray[(py - 1) * tw + (px + 1)];
+                                const ml = gray[py * tw + (px - 1)];
+                                const mr = gray[py * tw + (px + 1)];
+                                const bl = gray[(py + 1) * tw + (px - 1)];
+                                const bc = gray[(py + 1) * tw + px];
+                                const br = gray[(py + 1) * tw + (px + 1)];
+
+                                const gx_val = -tl + tr - 2 * ml + 2 * mr - bl + br;
+                                const gy_val = -tl - 2 * tc - tr + bl + 2 * bc + br;
+                                score += Math.sqrt(gx_val * gx_val + gy_val * gy_val);
+                                pixelCount++;
+                            }
+                        }
+                        row.push(score / Math.max(1, pixelCount));
+                    }
+                    gridScores.push(row);
+                }
+
+                // --- Layer 3: Weighted centroid ---
+                let edgeSumX = 0, edgeSumY = 0, edgeTotal = 0;
+                for (let gy = 0; gy < gridRows; gy++) {
+                    for (let gx = 0; gx < gridCols; gx++) {
+                        const s = gridScores[gy][gx];
+                        const cx = (gx + 0.5) / gridCols;
+                        const cy = (gy + 0.5) / gridRows;
+                        edgeSumX += cx * s;
+                        edgeSumY += cy * s;
+                        edgeTotal += s;
+                    }
+                }
+
+                // --- Combine: skin (70%) + edge (30%) if skin detected ---
+                const skinRatio = skinTotal / Math.max(1, tw * th);
+                let skinCx, skinCy, skinW;
+
+                if (skinTotal > 0 && skinRatio > 0.03) {
+                    skinCx = skinSumX / skinTotal / tw;
+                    skinCy = skinSumY / skinTotal / th;
+                    skinW = 0.70;
+                } else {
+                    skinCx = 0.5; skinCy = 0.5;
+                    skinW = 0.0;
+                }
+
+                let edgeCx, edgeCy;
+                const edgeW = 1.0 - skinW;
+
+                if (edgeTotal > 0) {
+                    edgeCx = edgeSumX / edgeTotal;
+                    edgeCy = edgeSumY / edgeTotal;
+                } else {
+                    edgeCx = 0.5; edgeCy = 0.5;
+                }
+
+                const totalW = skinW + edgeW;
+                let finalCx = (skinCx * skinW + edgeCx * edgeW) / totalW;
+                let finalCy = (skinCy * skinW + edgeCy * edgeW) / totalW;
+
+                // Anti-overcrop smoothing: pull toward center
+                const smoothing = 0.3;
+                finalCx = finalCx * (1 - smoothing) + 0.5 * smoothing;
+                finalCy = finalCy * (1 - smoothing) + 0.5 * smoothing;
+
+                // Clamp
+                finalCx = Math.max(0, Math.min(1, finalCx));
+                finalCy = Math.max(0, Math.min(1, finalCy));
+
+                return { cx: finalCx, cy: finalCy };
+            }
+
             async function processImageVariant(bitmap, targetW, targetH) {
                 const canvas = document.createElement('canvas');
                 canvas.width = targetW;
@@ -626,38 +1169,46 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const srcW = bitmap.width;
                 const srcH = bitmap.height;
+                const srcRatio = srcW / srcH;
+                const tgtRatio = targetW / targetH;
 
-                // 1. Force Scale by TARGET WIDTH (User Request: No generic cover)
-                const scale = targetW / srcW;
-
-                // 2. Calculate source area to match target ratio (Un-scaled dimensions)
-                const srcCropW = targetW / scale;
-                const srcCropH = targetH / scale;
-
-                // 3. Center the crop on the source image (Horizontal)
-                const srcX = (srcW - srcCropW) / 2;
-
-                // Vertical Bias (0.42 instead of 0.5 to favor top-center/faces)
-                const verticalBias = 0.42;
-                const srcY = (srcH - srcCropH) * verticalBias;
-
-                // 4. Draw (Source Crop -> Target Canvas)
-                // Clear canvas first (white base)
-                ctx.fillStyle = '#FFFFFF';
-                ctx.fillRect(0, 0, targetW, targetH);
-
-                // High quality scaling
                 ctx.imageSmoothingEnabled = true;
                 ctx.imageSmoothingQuality = 'high';
 
-                // drawImage(image, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight)
-                ctx.drawImage(bitmap, srcX, srcY, srcCropW, srcCropH, 0, 0, targetW, targetH);
+                if (Math.abs(srcRatio - tgtRatio) / tgtRatio <= RATIO_TOLERANCE) {
+                    // Branch 1: Ratio matches → direct resize, no crop
+                    ctx.drawImage(bitmap, 0, 0, srcW, srcH, 0, 0, targetW, targetH);
+                } else {
+                    // Branch 2: Ratio mismatch → content-aware smart crop
+                    // Step 1: Scale to COVER
+                    const scale = Math.max(targetW / srcW, targetH / srcH);
+                    const scaledW = Math.round(srcW * scale);
+                    const scaledH = Math.round(srcH * scale);
 
-                // 5. Adaptive Compression (< 200KB)
+                    // Step 2: Find interest center
+                    const interest = findInterestCenter(bitmap);
+
+                    // Step 3: Calculate crop window in scaled coordinates
+                    let cropX = Math.round(interest.cx * scaledW - targetW / 2);
+                    let cropY = Math.round(interest.cy * scaledH - targetH / 2);
+
+                    // Step 4: Clamp to bounds
+                    cropX = Math.max(0, Math.min(cropX, scaledW - targetW));
+                    cropY = Math.max(0, Math.min(cropY, scaledH - targetH));
+
+                    // Step 5: Map back to source coordinates for drawImage
+                    const sx = cropX / scale;
+                    const sy = cropY / scale;
+                    const sw = targetW / scale;
+                    const sh = targetH / scale;
+
+                    ctx.drawImage(bitmap, sx, sy, sw, sh, 0, 0, targetW, targetH);
+                }
+
+                // Adaptive Compression (< 200KB)
                 let quality = 0.95;
                 let blob = await canvasToBlob(canvas, 'image/jpeg', quality);
 
-                // If > 200KB, reduce quality iteratively
                 let attempts = 0;
                 while (blob.size > 200 * 1024 && quality > 0.5 && attempts < 10) {
                     quality -= 0.1;
