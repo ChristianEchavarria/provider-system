@@ -385,19 +385,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Clear existing options except the first "all"
                 while (filterSelect.options.length > 1) filterSelect.remove(1);
 
-                // Add status filters for MSTR data
-                if (isMstr) {
-                    const optActive = document.createElement('option');
-                    optActive.value = '_active';
-                    optActive.textContent = `Proveedores Activos (${data.metrics.active_providers_global})`;
-                    filterSelect.appendChild(optActive);
-
-                    const optInactive = document.createElement('option');
-                    optInactive.value = '_inactive';
-                    optInactive.textContent = `Proveedores Inactivos (${data.metrics.total_providers - data.metrics.active_providers_global})`;
-                    filterSelect.appendChild(optInactive);
-                }
-
                 Object.keys(data.stats_per_operation).forEach(op => {
                     const opt = document.createElement('option');
                     opt.value = op;
@@ -413,13 +400,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 tbody.innerHTML = '';
                 const t = translations[currentLang] || translations['es'];
 
-                // Update table header for MSTR data
+                // Update table header when MSTR metrics are available
                 const thead = tbody.closest('table')?.querySelector('thead');
                 if (thead && isMstr) {
                     thead.innerHTML = `<tr>
                         <th>${t.col_provider || 'Proveedor'}</th>
                         <th>${t.col_subprovider || 'Sub-Proveedor'}</th>
-                        <th>${t.col_vertical || 'Vertical'}</th>
                         <th>Juegos</th>
                         <th>GGR</th>
                         <th>Spins</th>
@@ -429,18 +415,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 let filteredProviders = data.providers_matrix;
 
-                // Apply filter
-                if (isMstr) {
-                    if (filterOp === '_active') {
-                        filteredProviders = data.providers_matrix.filter(p => p.is_active);
-                    } else if (filterOp === '_inactive') {
-                        filteredProviders = data.providers_matrix.filter(p => !p.is_active);
-                    } else if (filterOp !== 'all') {
-                        // Filter by category
-                        filteredProviders = data.providers_matrix.filter(p =>
-                            (p.Categorias || '').includes(filterOp)
-                        );
-                    }
+                // Apply filter based on data.txt SI/NO logic
+                if (filterOp !== 'all') {
+                    filteredProviders = data.providers_matrix.filter(p => {
+                        const val = (p[filterOp] || '').toLowerCase();
+                        return val === 'si' || val === 'active' || val === 'yes';
+                    });
                 }
 
                 filteredProviders.forEach(p => {
@@ -449,21 +429,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     let statusClass = 'status-inactive';
                     let statusIcon = 'cancel';
 
-                    if (isMstr) {
-                        // MSTR source: use is_active
-                        isActive = p.is_active;
+                    // Use data.txt SI/NO for status determination (same logic as before)
+                    if (filterOp === 'all') {
+                        const opKeys = Object.keys(data.stats_per_operation);
+                        isActive = opKeys.some(key => {
+                            const val = (p[key] || '').toLowerCase();
+                            return val === 'si' || val === 'active' || val === 'yes';
+                        });
                     } else {
-                        // data.txt source: use SI/NO
-                        if (filterOp === 'all') {
-                            const opKeys = Object.keys(data.stats_per_operation);
-                            isActive = opKeys.some(key => {
-                                const val = (p[key] || '').toLowerCase();
-                                return val === 'si' || val === 'active' || val === 'yes';
-                            });
-                        } else {
-                            const val = (p[filterOp] || '').toLowerCase();
-                            isActive = (val === 'si' || val === 'active' || val === 'yes');
-                        }
+                        const val = (p[filterOp] || '').toLowerCase();
+                        isActive = (val === 'si' || val === 'active' || val === 'yes');
                     }
 
                     if (isActive) {
@@ -474,15 +449,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     const tr = document.createElement('tr');
 
-                    if (isMstr) {
-                        // Enhanced MSTR table with metrics
+                    if (isMstr && p.has_mstr) {
+                        // Enriched table with MSTR metrics
                         const fmtNum = n => n >= 1000 ? (n / 1000).toFixed(1) + 'K' : n.toString();
                         const fmtMoney = n => n >= 1000000 ? '$' + (n / 1000000).toFixed(2) + 'M' : n >= 1000 ? '$' + (n / 1000).toFixed(1) + 'K' : '$' + n.toFixed(0);
 
                         tr.innerHTML = `
                             <td style="font-weight: 600; color: #fff;">${p['Proveedor']}</td>
                             <td>${p['Sub-proveedor'] || '-'}</td>
-                            <td><span style="font-size:11px; padding:2px 8px; border-radius:3px; background:rgba(255,255,255,0.06);">${p['Vertical'] || '-'}</span></td>
                             <td><span style="color:${p['Juegos Activos'] > 0 ? '#00ff88' : '#ff3b3b'}">${p['Juegos Activos']}A</span> / <span style="color:#ff3b3b">${p['Juegos Inactivos']}I</span></td>
                             <td style="color:${p['GGR'] >= 0 ? '#00ff88' : '#ff3b3b'}; font-weight:600;">${fmtMoney(p['GGR'])}</td>
                             <td style="color:#888;">${fmtNum(p['Spins'])}</td>
@@ -492,7 +466,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             </span></td>
                         `;
                     } else {
-                        // Original data.txt table
+                        // Standard table (no MSTR metrics)
                         tr.innerHTML = `
                             <td style="font-weight: 600; color: #fff;">${p['Proveedor']}</td>
                             <td>${p['Sub-proveedor'] || '-'}</td>
