@@ -188,8 +188,39 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (user.email) userNameDisplay.textContent = user.email.split('@')[0];
 
-                // Load data only when logged in
-                loadDashboardData();
+                // Apply RBAC UI Logic
+                const usersMock = JSON.parse(localStorage.getItem('mockUsers')) || {};
+                const userRole = usersMock[user.email] || 'Admin'; // Default admin
+                document.querySelector('.user-profile .role').textContent = userRole;
+
+                if (userRole === 'Colaborador') {
+                    // Restrict to Vision Processor only
+                    document.querySelectorAll('.nav-item').forEach(item => {
+                        if (item.id !== 'logout-btn' && item.dataset.target !== 'vision') {
+                            item.style.display = 'none';
+                        }
+                    });
+                    // Force vision view active
+                    document.querySelectorAll('.content-view').forEach(v => v.classList.remove('active'));
+                    document.getElementById('view-vision').classList.add('active');
+                    document.querySelectorAll('.nav-item').forEach(v => v.classList.remove('active'));
+                    const visionTab = document.querySelector('[data-target="vision"]');
+                    if (visionTab) visionTab.classList.add('active');
+                } else {
+                    // Un-restrict for Admin/Editor/Viewer
+                    document.querySelectorAll('.nav-item').forEach(item => {
+                        item.style.display = 'flex';
+                    });
+                    document.querySelectorAll('.content-view').forEach(v => v.classList.remove('active'));
+                    const dbView = document.getElementById('view-dashboard');
+                    if (dbView) dbView.classList.add('active');
+                    document.querySelectorAll('.nav-item').forEach(v => v.classList.remove('active'));
+                    const dbTab = document.querySelector('[data-target="dashboard"]');
+                    if (dbTab) dbTab.classList.add('active');
+
+                    // Load dashboard default data
+                    loadDashboardData();
+                }
             } else {
                 // User is signed out
                 console.log("User logged out");
@@ -1458,6 +1489,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 showNotification('Email inválido', 'error');
                 return;
             }
+
+            // Mock RBAC: Save the role in localStorage to apply it on login
+            const usersMock = JSON.parse(localStorage.getItem('mockUsers')) || {};
+            usersMock[email] = role;
+            localStorage.setItem('mockUsers', JSON.stringify(usersMock));
 
             const tbody = document.querySelector('#view-admin table tbody');
 
