@@ -115,16 +115,209 @@ async def read_index():
 # DASHBOARD DATA
 # =============================
 
+def _build_mstr_dashboard():
+    """Build dashboard data from MicroStrategy cached records."""
+    data = get_cached_data()
+    columns = data.get("columns", [])
+    rows = data.get("rows", [])
+
+    if not rows or not columns:
+        return None
+
+    # Map column indices
+    ci = {col: i for i, col in enumerate(columns)}
+
+    # Required columns
+    required = ["Nombre Proveedor", "Nombre Subproveedor", "Estado Proveedor", "Estado Subproveedor"]
+    if not all(r in ci for r in required):
+        print(f"[DASHBOARD] Missing required columns. Have: {columns}")
+        return None
+
+    # Aggregate by Provider + SubProvider
+    providers_map = {}  # key: (provider, subprovider) -> aggregated data
+
+    for row in rows:
+        def val(col):
+            idx = ci.get(col)
+            if idx is None or idx >= len(row):
+                return ""
+            return row[idx]
+
+        def num(col):
+            v = val(col)
+            try:
+                return float(str(v).replace(",", "")) if v not in ("", None) else 0.0
+            except (ValueError, TypeError):
+                return 0.0
+
+        prov = str(val("Nombre Proveedor")).strip()
+        sub = str(val("Nombre Subproveedor")).strip()
+        key = (prov, sub)
+
+        if key not in providers_map:
+            providers_map[key] = {
+                "Proveedor": prov,
+                "Sub-proveedor": sub,
+                "Vertical": str(val("Tipo casino")).strip() or str(val("Categoria")).strip() or "-",
+                "Estado Proveedor": str(val("Estado Proveedor")).strip(),
+                "Estado Subproveedor": str(val("Estado Subproveedor")).strip(),
+                "Categorias": set(),
+                "total_games": 0,
+                "active_games": 0,
+                "inactive_games": 0,
+                "total_spins": 0,
+                "total_apuesta": 0,
+                "total_ggr": 0,
+                "total_premios": 0,
+                "jugadores_unicos": 0,
+                "rtp_sum": 0,
+                "rtp_count": 0,
+            }
+
+        entry = providers_map[key]
+        entry["total_games"] += 1
+        game_status = str(val("Estado juego")).strip().upper()
+        if game_status == "A":
+            entry["active_games"] += 1
+        else:
+            entry["inactive_games"] += 1
+
+        cat = str(val("Categoria")).strip()
+        if cat:
+            entry["Categorias"].add(cat)
+
+        entry["total_spins"] += num("Spins")
+        entry["total_apuesta"] += num("Apuesta")
+        entry["total_ggr"] += num("GGR")
+        entry["total_premios"] += num("Premios")
+        entry["jugadores_unicos"] += num("Jugadores unicos")
+
+        rtp = num("RTP")
+        if rtp > 0:
+            entry["rtp_sum"] += rtp
+            entry["rtp_count"] += 1
+
+    # Build provider matrix
+    providers_matrix = []
+    active_providers = 0
+    active_subproviders = 0
+    unique_providers = set()
+    unique_categories = set()
+
+    for key, entry in providers_map.items():
+        prov_status = entry["Estado Proveedor"].upper()
+        sub_status = entry["Estado Subproveedor"].upper()
+        is_active = (prov_status == "A")
+
+        categories = ", ".join(sorted(entry["Categorias"])) if entry["Categorias"] else "-"
+        unique_categories.update(entry["Categorias"])
+        unique_providers.add(entry["Proveedor"])
+
+        avg_rtp = (entry["rtp_sum"] / entry["rtp_count"] * 100) if entry["rtp_count"] > 0 else 0
+        margin = (entry["total_ggr"] / entry["total_apuesta"] * 100) if entry["total_apuesta"] > 0 else 0
+
+        providers_matrix.append({
+            "Proveedor": entry["Proveedor"],
+            "Sub-proveedor": entry["Sub-proveedor"],
+            "Vertical": entry["Vertical"],
+            "Estado Proveedor": "Activo" if prov_status == "A" else "Inactivo",
+            "Estado Subproveedor": "Activo" if sub_status == "A" else "Inactivo",
+            "Categorias": categories,
+            "Juegos Activos": entry["active_games"],
+            "Juegos Inactivos": entry["inactive_games"],
+            "Total Juegos": entry["total_games"],
+            "Jugadores Únicos": int(entry["jugadores_unicos"]),
+            "Spins": int(entry["total_spins"]),
+            "Apuesta": round(entry["total_apuesta"], 2),
+            "GGR": round(entry["total_ggr"], 2),
+            "Premios": round(entry["total_premios"], 2),
+            "RTP %": round(avg_rtp, 2),
+            "Margen %": round(margin, 2),
+            "is_active": is_active,
+        })
+
+        if prov_status == "A":
+            active_providers += 1
+        if sub_status == "A":
+            active_subproviders += 1
+
+    # Sort by GGR descending
+    providers_matrix.sort(key=lambda x: x["GGR"], reverse=True)
+
+    # Build stats per category
+    stats_per_category = {}
+    for entry in providers_matrix:
+        for cat in entry["Categorias"].split(", "):
+            cat = cat.strip()
+            if cat and cat != "-":
+                if cat not in stats_per_category:
+                    stats_per_category[cat] = 0
+                if entry["is_active"]:
+                    stats_per_category[cat] += 1
+
+    # Build activity log from status changes (detect inactive providers/games)
+    activity_log = []
+    for entry in providers_matrix[:15]:
+        if entry["Juegos Inactivos"] > 0 and entry["Juegos Activos"] > 0:
+            activity_log.append({
+                "time": data.get("timestamp", "")[:8] if data.get("timestamp") else "--:--:--",
+                "provider": entry["Proveedor"],
+                "sub_provider": entry["Sub-proveedor"],
+                "change": f"{entry['Juegos Activos']}A / {entry['Juegos Inactivos']}I",
+                "type": "mixed"
+            })
+        elif entry["Estado Proveedor"] == "Inactivo":
+            activity_log.append({
+                "time": data.get("timestamp", "")[:8] if data.get("timestamp") else "--:--:--",
+                "provider": entry["Proveedor"],
+                "sub_provider": entry["Sub-proveedor"],
+                "change": "Inactive",
+                "type": "inactive"
+            })
+
+    # KPIs
+    total_ggr = sum(e["GGR"] for e in providers_matrix)
+    total_spins = sum(e["Spins"] for e in providers_matrix)
+    total_apuesta = sum(e["Apuesta"] for e in providers_matrix)
+    compliance_rate = round(active_providers / len(providers_matrix) * 100, 1) if providers_matrix else 0
+
+    return {
+        "success": True,
+        "source": "microstrategy",
+        "metrics": {
+            "total_operations": len(unique_providers),
+            "total_providers": len(providers_matrix),
+            "active_providers_global": active_providers,
+            "active_subproviders": active_subproviders,
+            "compliance_rate": compliance_rate,
+            "total_ggr": round(total_ggr, 2),
+            "total_spins": total_spins,
+            "total_apuesta": round(total_apuesta, 2),
+            "total_games": sum(e["Total Juegos"] for e in providers_matrix),
+        },
+        "stats_per_operation": stats_per_category,
+        "alerts": [],
+        "activity_log": activity_log,
+        "providers_matrix": providers_matrix,
+        "timestamp": time.time(),
+        "last_sync": data.get("timestamp"),
+    }
+
+
 @app.get("/api/dashboard-data")
 async def get_dashboard_data():
-
     try:
+        # Try MSTR data first
+        if MSTR_AVAILABLE:
+            mstr_dashboard = _build_mstr_dashboard()
+            if mstr_dashboard:
+                return mstr_dashboard
+
+        # Fallback to data.txt
         headers, providers = load_data("data.txt")
 
         if not providers:
-            return {
-                "error": "No data found"
-            }
+            return {"error": "No data found"}
 
         stats = generate_dashboard_stats(providers, headers)
         alerts = analyze_compliance(providers, headers)
@@ -132,6 +325,7 @@ async def get_dashboard_data():
 
         return {
             "success": True,
+            "source": "data_txt",
             "metrics": {
                 "total_operations": len(headers) - 3,
                 "total_providers": len(providers),
@@ -148,11 +342,7 @@ async def get_dashboard_data():
     except Exception as e:
         print("❌ dashboard error:", str(e))
         traceback.print_exc()
-
-        raise HTTPException(
-            status_code=500,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=500, detail=str(e))
 
 # =============================
 # ADMIN OPERATIONS

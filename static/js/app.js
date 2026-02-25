@@ -367,6 +367,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
+            const isMstr = data.source === 'microstrategy';
+
             // Update KPI Cards
             const safeSetText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
             safeSetText('kpi-ops', data.metrics.total_operations);
@@ -380,6 +382,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Populate Filter options only if empty
             if (filterSelect.options.length <= 1 && data.stats_per_operation) {
+                // Clear existing options except the first "all"
+                while (filterSelect.options.length > 1) filterSelect.remove(1);
+
+                // Add status filters for MSTR data
+                if (isMstr) {
+                    const optActive = document.createElement('option');
+                    optActive.value = '_active';
+                    optActive.textContent = `Proveedores Activos (${data.metrics.active_providers_global})`;
+                    filterSelect.appendChild(optActive);
+
+                    const optInactive = document.createElement('option');
+                    optInactive.value = '_inactive';
+                    optInactive.textContent = `Proveedores Inactivos (${data.metrics.total_providers - data.metrics.active_providers_global})`;
+                    filterSelect.appendChild(optInactive);
+                }
+
                 Object.keys(data.stats_per_operation).forEach(op => {
                     const opt = document.createElement('option');
                     opt.value = op;
@@ -395,45 +413,96 @@ document.addEventListener('DOMContentLoaded', () => {
                 tbody.innerHTML = '';
                 const t = translations[currentLang] || translations['es'];
 
-                data.providers_matrix.forEach(p => {
+                // Update table header for MSTR data
+                const thead = tbody.closest('table')?.querySelector('thead');
+                if (thead && isMstr) {
+                    thead.innerHTML = `<tr>
+                        <th>${t.col_provider || 'Proveedor'}</th>
+                        <th>${t.col_subprovider || 'Sub-Proveedor'}</th>
+                        <th>${t.col_vertical || 'Vertical'}</th>
+                        <th>Juegos</th>
+                        <th>GGR</th>
+                        <th>Spins</th>
+                        <th>${t.col_status || 'Estado'}</th>
+                    </tr>`;
+                }
+
+                let filteredProviders = data.providers_matrix;
+
+                // Apply filter
+                if (isMstr) {
+                    if (filterOp === '_active') {
+                        filteredProviders = data.providers_matrix.filter(p => p.is_active);
+                    } else if (filterOp === '_inactive') {
+                        filteredProviders = data.providers_matrix.filter(p => !p.is_active);
+                    } else if (filterOp !== 'all') {
+                        // Filter by category
+                        filteredProviders = data.providers_matrix.filter(p =>
+                            (p.Categorias || '').includes(filterOp)
+                        );
+                    }
+                }
+
+                filteredProviders.forEach(p => {
                     let isActive = false;
-                    let displayStatus = t.status_inactive;
+                    let displayStatus = t.status_inactive || 'Inactivo';
                     let statusClass = 'status-inactive';
                     let statusIcon = 'cancel';
 
-                    if (filterOp === 'all') {
-                        const opKeys = Object.keys(data.stats_per_operation);
-                        isActive = opKeys.some(key => {
-                            const val = (p[key] || '').toLowerCase();
-                            return val === 'si' || val === 'active' || val === 'yes';
-                        });
-
-                        if (isActive) {
-                            displayStatus = t.status_active;
-                            statusClass = 'status-active';
-                            statusIcon = 'check_circle';
-                        }
+                    if (isMstr) {
+                        // MSTR source: use is_active
+                        isActive = p.is_active;
                     } else {
-                        const val = (p[filterOp] || '').toLowerCase();
-                        isActive = (val === 'si' || val === 'active' || val === 'yes');
-
-                        if (isActive) {
-                            displayStatus = t.status_active;
-                            statusClass = 'status-active';
-                            statusIcon = 'check_circle';
+                        // data.txt source: use SI/NO
+                        if (filterOp === 'all') {
+                            const opKeys = Object.keys(data.stats_per_operation);
+                            isActive = opKeys.some(key => {
+                                const val = (p[key] || '').toLowerCase();
+                                return val === 'si' || val === 'active' || val === 'yes';
+                            });
+                        } else {
+                            const val = (p[filterOp] || '').toLowerCase();
+                            isActive = (val === 'si' || val === 'active' || val === 'yes');
                         }
                     }
 
+                    if (isActive) {
+                        displayStatus = t.status_active || 'Activo';
+                        statusClass = 'status-active';
+                        statusIcon = 'check_circle';
+                    }
+
                     const tr = document.createElement('tr');
-                    tr.innerHTML = `
-                        <td style="font-weight: 600; color: #fff;">${p['Proveedor']}</td>
-                        <td>${p['Sub-proveedor'] || '-'}</td>
-                        <td>${p['Vertical'] || '-'}</td>
-                        <td><span class="status-indicator ${statusClass}">
-                            <span class="material-icons-round" style="font-size:14px; margin-right:4px;">${statusIcon}</span>
-                            ${displayStatus}
-                        </span></td>
-                    `;
+
+                    if (isMstr) {
+                        // Enhanced MSTR table with metrics
+                        const fmtNum = n => n >= 1000 ? (n / 1000).toFixed(1) + 'K' : n.toString();
+                        const fmtMoney = n => n >= 1000000 ? '$' + (n / 1000000).toFixed(2) + 'M' : n >= 1000 ? '$' + (n / 1000).toFixed(1) + 'K' : '$' + n.toFixed(0);
+
+                        tr.innerHTML = `
+                            <td style="font-weight: 600; color: #fff;">${p['Proveedor']}</td>
+                            <td>${p['Sub-proveedor'] || '-'}</td>
+                            <td><span style="font-size:11px; padding:2px 8px; border-radius:3px; background:rgba(255,255,255,0.06);">${p['Vertical'] || '-'}</span></td>
+                            <td><span style="color:${p['Juegos Activos'] > 0 ? '#00ff88' : '#ff3b3b'}">${p['Juegos Activos']}A</span> / <span style="color:#ff3b3b">${p['Juegos Inactivos']}I</span></td>
+                            <td style="color:${p['GGR'] >= 0 ? '#00ff88' : '#ff3b3b'}; font-weight:600;">${fmtMoney(p['GGR'])}</td>
+                            <td style="color:#888;">${fmtNum(p['Spins'])}</td>
+                            <td><span class="status-indicator ${statusClass}">
+                                <span class="material-icons-round" style="font-size:14px; margin-right:4px;">${statusIcon}</span>
+                                ${displayStatus}
+                            </span></td>
+                        `;
+                    } else {
+                        // Original data.txt table
+                        tr.innerHTML = `
+                            <td style="font-weight: 600; color: #fff;">${p['Proveedor']}</td>
+                            <td>${p['Sub-proveedor'] || '-'}</td>
+                            <td>${p['Vertical'] || '-'}</td>
+                            <td><span class="status-indicator ${statusClass}">
+                                <span class="material-icons-round" style="font-size:14px; margin-right:4px;">${statusIcon}</span>
+                                ${displayStatus}
+                            </span></td>
+                        `;
+                    }
                     tbody.appendChild(tr);
                 });
             };
@@ -469,7 +538,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         alertsList.appendChild(div);
                     });
                 } else {
-                    alertsList.innerHTML = `<div class="empty-state" style="color:#4caf50; padding:12px;">${t.system_healthy}</div>`;
+                    const syncInfo = isMstr && data.last_sync ? `<br><small style="color:#888;">Última sync: ${data.last_sync}</small>` : '';
+                    alertsList.innerHTML = `<div class="empty-state" style="color:#4caf50; padding:12px;">${t.system_healthy}${syncInfo}</div>`;
                 }
             }
 
@@ -488,13 +558,23 @@ document.addEventListener('DOMContentLoaded', () => {
                             font-family: monospace;
                             font-size: 12px;
                         `;
+
                         let changeColor = '#a0a0a0';
-                        if (log.change.includes('Active') && !log.change.includes('Inactive -> Active')) changeColor = '#ff3b3b';
-                        if (log.change.includes('Inactive -> Active')) changeColor = '#00ff88';
+                        if (log.type === 'inactive' || log.change === 'Inactive') {
+                            changeColor = '#ff3b3b';
+                        } else if (log.type === 'mixed') {
+                            changeColor = '#ffa500';
+                        } else if (log.change.includes('Active') && !log.change.includes('Inactive -> Active')) {
+                            changeColor = '#ff3b3b';
+                        } else if (log.change.includes('Inactive -> Active')) {
+                            changeColor = '#00ff88';
+                        }
+
+                        const providerLabel = log.sub_provider ? `${log.provider} / ${log.sub_provider}` : log.provider;
 
                         item.innerHTML = `
                             <span style="color: #666;">${log.time}</span>
-                            <span style="color: #fff; font-weight:600;">${log.provider}</span>
+                            <span style="color: #fff; font-weight:600; flex:1; margin: 0 8px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${providerLabel}</span>
                             <span style="color: ${changeColor};">${log.change}</span>
                         `;
                         feed.appendChild(item);
