@@ -13,7 +13,7 @@ from .config import MstrConfig
 
 def _build_session() -> requests.Session:
     session = requests.Session()
-    retry = Retry(total=10, backoff_factor=5, status_forcelist=[429, 500, 502, 503, 504])
+    retry = Retry(total=3, backoff_factor=2, status_forcelist=[429, 500, 502, 503, 504])
     adapter = HTTPAdapter(max_retries=retry)
     session.mount("http://", adapter)
     session.mount("https://", adapter)

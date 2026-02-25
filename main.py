@@ -309,6 +309,104 @@ async def analytics_status():
     }
 
 
+@app.get("/api/analytics-debug")
+async def analytics_debug():
+    """Step-by-step diagnostic for MicroStrategy extraction."""
+    steps = []
+    try:
+        # Step 1: Check env vars
+        mstr_url = os.getenv("MICROSTRATEGY_URL") or os.getenv("MSTR_BASE_URL") or ""
+        mstr_user = os.getenv("MICROSTRATEGY_USER") or os.getenv("MSTR_USERNAME") or ""
+        mstr_pass = os.getenv("MICROSTRATEGY_PASSWORD") or os.getenv("MSTR_PASSWORD") or ""
+        report_id = os.getenv("MSTR_REPORT_ID", "")
+        steps.append({
+            "step": "env_vars",
+            "ok": bool(mstr_url and mstr_user and mstr_pass),
+            "detail": {
+                "MICROSTRATEGY_URL": mstr_url[:50] + "..." if len(mstr_url) > 50 else mstr_url,
+                "MICROSTRATEGY_USER": mstr_user,
+                "MSTR_REPORT_ID": report_id,
+                "has_password": bool(mstr_pass),
+            }
+        })
+        if not (mstr_url and mstr_user and mstr_pass):
+            return {"steps": steps, "conclusion": "Missing env vars"}
+
+        # Step 2: Load config
+        from mstr.config import MstrConfig
+        config = MstrConfig.from_env()
+        steps.append({"step": "config", "ok": True, "detail": {"base_url": config.base_url}})
+
+        # Step 3: Can we reach the server?
+        import requests as req
+        try:
+            r = req.get(f"{config.base_url}/api/status", timeout=(5, 10))
+            steps.append({"step": "server_reachable", "ok": r.status_code == 200, "detail": {"status_code": r.status_code, "body": r.text[:200]}})
+        except Exception as e:
+            steps.append({"step": "server_reachable", "ok": False, "detail": str(e)})
+            return {"steps": steps, "conclusion": f"Cannot reach MSTR server: {e}"}
+
+        # Step 4: Login
+        try:
+            session = req.Session()
+            login_resp = session.post(
+                f"{config.base_url}/api/auth/login",
+                json={"username": config.username, "password": config.password, "loginMode": config.login_mode},
+                timeout=(5, 15),
+            )
+            token = login_resp.headers.get("X-MSTR-AuthToken", "")
+            steps.append({"step": "login", "ok": bool(token), "detail": {"status_code": login_resp.status_code, "has_token": bool(token)}})
+            if not token:
+                return {"steps": steps, "conclusion": f"Login failed: {login_resp.status_code} {login_resp.text[:200]}"}
+        except Exception as e:
+            steps.append({"step": "login", "ok": False, "detail": str(e)})
+            return {"steps": steps, "conclusion": f"Login error: {e}"}
+
+        # Step 5: Resolve project
+        try:
+            headers = {"X-MSTR-AuthToken": token}
+            r = session.get(f"{config.base_url}/api/projects", headers=headers, timeout=(5, 15))
+            projects = r.json()
+            proj_names = [p.get("name") for p in projects]
+            pid = None
+            for p in projects:
+                if p.get("name") == config.default_project:
+                    pid = p["id"]
+            steps.append({"step": "project", "ok": bool(pid), "detail": {"projects": proj_names, "matched": config.default_project, "id": pid}})
+            if not pid:
+                return {"steps": steps, "conclusion": f"Project '{config.default_project}' not found"}
+        except Exception as e:
+            steps.append({"step": "project", "ok": False, "detail": str(e)})
+            return {"steps": steps, "conclusion": f"Project resolution error: {e}"}
+
+        # Step 6: Detect object type
+        try:
+            hdr = {"X-MSTR-AuthToken": token, "X-MSTR-ProjectID": pid}
+            r_report = session.get(f"{config.base_url}/api/reports/{report_id}", headers=hdr, timeout=(10, 15))
+            r_dossier = session.get(f"{config.base_url}/api/dossiers/{report_id}/definition", headers=hdr, timeout=(10, 15))
+            obj_type = "dossier" if r_dossier.status_code == 200 else ("report" if r_report.status_code == 200 else "unknown")
+            steps.append({"step": "object_type", "ok": obj_type != "unknown", "detail": {
+                "report_status": r_report.status_code,
+                "dossier_status": r_dossier.status_code,
+                "type": obj_type,
+            }})
+        except Exception as e:
+            steps.append({"step": "object_type", "ok": False, "detail": str(e)})
+
+        # Logout
+        try:
+            session.post(f"{config.base_url}/api/auth/logout", headers={"X-MSTR-AuthToken": token}, timeout=(5, 5))
+        except:
+            pass
+        session.close()
+
+        return {"steps": steps, "conclusion": "All diagnostic steps passed"}
+
+    except Exception as e:
+        steps.append({"step": "unexpected", "ok": False, "detail": str(e)})
+        return {"steps": steps, "conclusion": f"Unexpected error: {e}"}
+
+
 # =============================
 # RENDER COMPATIBLE STARTUP
 # =============================

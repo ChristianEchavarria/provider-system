@@ -11,3 +11,18 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.9.0
+      # MicroStrategy credentials -- set values in Render Dashboard (Settings > Environment)
+      - key: MICROSTRATEGY_URL
+        sync: false
+      - key: MICROSTRATEGY_USER
+        sync: false
+      - key: MICROSTRATEGY_PASSWORD
+        sync: false
+      - key: DEFAULT_PROJECT
+        sync: false
+      - key: MSTR_LOGIN_MODE
+        sync: false
+      - key: MSTR_REPORT_ID
+        sync: false
+      - key: MSTR_SYNC_INTERVAL_MINUTES
+        sync: false

@@ -96,22 +96,25 @@ def run_extraction(report_id: str | None = None):
     """Run the MicroStrategy extraction and update the cache."""
     global _cached_data
 
-    from dotenv import load_dotenv
-    load_dotenv(os.path.join(BASE_DIR, ".env"), override=True)
-
-    report_id = report_id or os.getenv("MSTR_REPORT_ID", "")
-    if not report_id:
-        print("[MSTR SCHEDULER] No MSTR_REPORT_ID configured, skipping extraction")
-        return
-
-    print(f"[MSTR SCHEDULER] Starting extraction at {datetime.now().isoformat()}")
-
     try:
+        from dotenv import load_dotenv
+        load_dotenv(os.path.join(BASE_DIR, ".env"), override=True)
+
+        report_id = report_id or os.getenv("MSTR_REPORT_ID", "")
+        if not report_id:
+            msg = "No MSTR_REPORT_ID configured, skipping extraction"
+            print(f"[MSTR SCHEDULER] {msg}")
+            _save_status(False, 0, msg)
+            return
+
+        print(f"[MSTR SCHEDULER] Starting extraction at {datetime.now().isoformat()}")
+
         config = MstrConfig.from_env(os.path.join(BASE_DIR, ".env"))
+        print(f"[MSTR SCHEDULER] Config loaded: {config.base_url}")
 
         with MstrSession(config) as ctx:
             project_id = resolve_project_id(ctx.session, config, ctx.token)
-            print(f"[MSTR SCHEDULER] Project resolved -> Virtualsoft")
+            print(f"[MSTR SCHEDULER] Project resolved -> {config.default_project}")
 
             obj_type = detect_object_type(ctx.session, config, ctx.token, project_id, report_id)
             print(f"[MSTR SCHEDULER] Object type: {obj_type}")
@@ -146,24 +149,45 @@ def run_extraction(report_id: str | None = None):
                     raise RuntimeError("Dossier sin visualizaciones")
 
                 instance_id, mid = create_dossier_instance(ctx.session, config, ctx.token, project_id, report_id)
+                print(f"[MSTR SCHEDULER] Dossier instance: {instance_id}")
 
                 for viz in viz_list:
                     try:
-                        payload = fetch_dossier_visualization(
-                            ctx.session, config, ctx.token, project_id, report_id,
-                            instance_id, viz["chapter_key"], viz["visualization_key"],
-                        )
+                        # Paginated fetch for dossier visualization
+                        offset = 0
+                        limit = 50_000
+                        viz_columns = []
+                        viz_rows = []
+
+                        while True:
+                            payload = fetch_dossier_visualization(
+                                ctx.session, config, ctx.token, project_id, report_id,
+                                instance_id, viz["chapter_key"], viz["visualization_key"],
+                                offset=offset, limit=limit,
+                            )
+                            if payload is None:
+                                break
+
+                            try:
+                                page_columns, page_rows = extract_dossier_grid(payload)
+                            except Exception as e:
+                                print(f"[MSTR SCHEDULER] Parse error for '{viz['visualization_name']}' at offset {offset}: {e}")
+                                break
+
+                            if not page_rows:
+                                break
+
+                            if not viz_columns:
+                                viz_columns = page_columns
+                            viz_rows.extend(page_rows)
+                            print(f"[MSTR SCHEDULER] Viz '{viz['visualization_name']}': fetched {len(page_rows)} rows (total: {len(viz_rows)})")
+
+                            if len(page_rows) < limit:
+                                break
+                            offset += limit
+
                     except Exception as e:
                         print(f"[MSTR SCHEDULER] Skip viz '{viz['visualization_name']}': {e}")
-                        continue
-
-                    if payload is None:
-                        continue
-
-                    try:
-                        viz_columns, viz_rows = extract_dossier_grid(payload)
-                    except Exception as e:
-                        print(f"[MSTR SCHEDULER] Parse error for '{viz['visualization_name']}': {e}")
                         continue
 
                     if not viz_rows:
@@ -218,6 +242,8 @@ def start_scheduler():
 
     def _scheduler_loop():
         import time as _time
+        # Initial delay for cold-start resilience (e.g. Render)
+        _time.sleep(15)
         while True:
             try:
                 run_extraction()
